@@ -15,6 +15,9 @@ import static org.lwjgl.opengl.GL20.glBindAttribLocation;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 import java.awt.Graphics2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
 import java.io.File;
@@ -53,7 +56,7 @@ public class Main
 
 	final public static String OBJ_PATH = "obj/"; 
 	final public static String RESULT_PATH = "results/"; 
-	public static String NAME = "skull";
+	public static String NAME = "yoda";
 	
 	public static float[][][] readBackAsFloat(int id, int format, int type) // each [height][width][4] (4: R,G,B,A. Each value is between [0.0f,1.0f])
 	{
@@ -87,7 +90,7 @@ public class Main
 	{
 		//slicer();
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
-		int numSlice = 5;
+		int numSlice = 113;
 		Slice slice = getSlice(numSlice, obj);
 		Vec3f size = obj.getMax().sub(obj.getMin());
 		
@@ -95,6 +98,10 @@ public class Main
 
 		//slicerCPU(slice, 5);
 		int[][] pixels = slicerGPU(slice, numSlice);
+		
+	
+
+		/*
 		Vec2i pos = getCorner(pixels);
 		int x = pos.x;
 		int y = pos.y;
@@ -103,12 +110,22 @@ public class Main
 		pixels[x-1][y] = 0xFF;
 		pixels[x][y+1] =0xFF;
 		pixels[x][y-1] = 0xFF;
-
-	
+*/
+		ArrayList<Vec2i> path = getPath(erode(pixels, 1));
+		
 		BufferedImage img = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
+		BufferedImage img2 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 		
 		setData(img, pixels);
+		setData(img2, pixels);
+		Graphics2D ctx = img2.createGraphics();
+		for(int i = 0; i < path.size() - 1; ++i) {
+	
+
+			ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+		}
 		saveImage(img, RESULT_PATH + NAME  + "GPU" + numSlice + ".png");
+		saveImage(img2, RESULT_PATH + NAME  + "GPUPath" + numSlice + ".png");
 	
 		
 		setData(img, erode(pixels, 1));
@@ -164,7 +181,7 @@ public class Main
 			for(int x = 0; x < pixels.length; ++x) {
 				int samp = pixels[x][y];
 				int d =x + y;//(float) new Vec2i(x, y).length();
-				if((samp & 0xFFFFFF) > 0 && minx > d) {
+				if(((samp  >> 16) & 0xFF) > 0 && minx > d) {
 					System.out.println("position: " + x + " " + y);
 					minx = d;
 					m = x;
@@ -177,11 +194,88 @@ public class Main
 		return pos;
 	}
 	
+	public static ArrayList<Vec2i> getPath(int[][] pixels) {
+		
+		ArrayList<Vec2i> path = new ArrayList<>();
+		Vec2i pos = getCorner(pixels), tmp = new Vec2i(0, 0);
+		path.add(new Vec2i(pos.x, pos.y));
+		int x = 0, y = 1, j= 0;
+
+		Vec2i neighbor = new Vec2i(0, 0);
+		Vec2i noon = new Vec2i(0,0);
+		boolean found = false;
+		boolean val = false;
+		boolean nval = false;
+		do {
+			found = false;
+		
+			boolean sens = false;
+			noon.x = pos.x;
+			noon.y = pos.y + 1;
+			
+			x = 0; y = 1;
+			j = 0;
+			while(j++ < 8) { // rotation horaire 8 connexe
+				if(sens) {
+					if(x > 0) --y;
+					else if(x < 0) ++y;
+				}else {
+					if(y > 0) ++x;
+					else if(y < 0) --x;
+				}
+				sens ^= ((x+y) & 1) == 0;
+				
+				neighbor.x = pos.x + x;
+				neighbor.y = pos.y + y;
+				
+				val = ((pixels[noon.x][noon.y] >> 16) & 0xFF) > 0; // pix courant
+				nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
+				/*
+				if(neighbor.x < 0 || neighbor.y < 0 || neighbor.x > WIDTH || neighbor.y > HEIGHT) {
+				 
+					neighbor.x = pos.x + x;
+					neighbor.y = pos.y + y;
+					
+					tmp.x = neighbor.x;
+					tmp.y = neighbor.y;
+					continue;
+				}
+				*/
+				if(val != nval) {
+					if(nval) {
+						tmp.x = neighbor.x;
+						tmp.y = neighbor.y;
+					}else {
+						tmp.x = noon.x;
+						tmp.y = noon.y;
+					}
+					int id = path.indexOf(tmp);
+					if(id < 0) {
+						pos.x = tmp.x;
+						pos.y = tmp.y;
+						path.add(new Vec2i(pos.x, pos.y));
+						//pixels[pos.x][pos.y] = 0x00FF00;
+						found = true;
+						break;
+					}
+					
+				}
+		
+				noon.x = neighbor.x;
+				noon.y = neighbor.y;
+				
+				val = nval;
+			}
+		}while(!pos.equals(path.get(0)) && found);
+		
+		return path;
+	}
+	
 	public static int[][] erode(int[][] pixels, int nbErosion) {
 		
 		int[][] erodePixs = copy(pixels);//img.getSubimage(0, 0, img.getWidth(), img.getHeight());
 		
-		int kernel = (int) (0.4f / PIXEL_SIZE);
+		int kernel = (int) ((BUSE_SIZE * 0.5f) / PIXEL_SIZE);
 		for(int i = nbErosion; i > 0; --i) {
 			int[][] tmp = copy(erodePixs);
 			clearData(erodePixs);
