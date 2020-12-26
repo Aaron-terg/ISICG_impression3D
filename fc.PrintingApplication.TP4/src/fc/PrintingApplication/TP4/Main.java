@@ -61,7 +61,7 @@ public class Main
 
 	final public static String OBJ_PATH = "obj/"; 
 	final public static String RESULT_PATH = "results/"; 
-	public static String NAME = "yoda";
+	public static String NAME = "CuteOcto";
 	
 	public static float[][][] readBackAsFloat(int id, int format, int type) // each [height][width][4] (4: R,G,B,A. Each value is between [0.0f,1.0f])
 	{
@@ -93,17 +93,19 @@ public class Main
 	
 	public static void main(String[] args)
 	{
-		slicer();
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
-		int numSlice = 113;
-		Slice slice = getSlice(numSlice, obj);
-		Vec3f size = obj.getMax().sub(obj.getMin());
 		int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / PIXEL_SIZE);
 		int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / PIXEL_SIZE);
+		WIDTH = h_size;
+		HEIGHT = v_size;
+		OFFSET.x = h_size *0.5f;
+		OFFSET.y = v_size *0.5f;
+		int numSlice = 113;
+		Slice slice = getSlice(numSlice, obj);
 
-		OFFSET.x = h_size;
-		OFFSET.y = v_size;
 		slice.remap(OFFSET, PIXEL_SIZE);
+		slicer(null);
+
 
 		//slicerCPU(slice, 5);
 		int[][] pixels = slicerGPU(slice, numSlice);
@@ -165,7 +167,8 @@ public class Main
 	//	saveImage(img, RESULT_PATH + NAME  + "Erode" + numSlice + ".png");
 
 	}
-	// IMG buffer - int[][] pixel
+	
+	// IMG buffer - int[][] pixel --------------------------------------
 	public static int[][] getData(BufferedImage img) {
 		int pixels[][] = new int[img.getWidth()][img.getHeight()];
 		for(int y = 0; y < img.getHeight(); ++y) {
@@ -203,11 +206,10 @@ public class Main
 				pixels[x][y] = 0x000000;	
 	}
 	
-	// Generate path
+	// Generate path ---------------------------------------------------
 	public static ArrayList<Vec2i> getCorners(int[][] pixels) {		
 		return getCorners(pixels, null);
 	}
-	
 	
 	public static ArrayList<Vec2i> getCorners(int[][] pixels, ArrayList<Vec2i[]> BoundaryBoxes){
 		
@@ -383,8 +385,10 @@ public class Main
 			
 			neighbor.x = pos.x + x;
 			neighbor.y = pos.y + y;
-			if(neighbor.x < 0 || neighbor.x > WIDTH || neighbor.y < 0 || neighbor.y > HEIGHT) continue;
-	
+			if(neighbor.x < 0 || neighbor.x >= WIDTH || neighbor.y < 0 || neighbor.y >= HEIGHT) continue;
+			if(noon.x < 0 || noon.x >= WIDTH || noon.y < 0 || noon.y >= HEIGHT) continue;
+
+			
 			val = ((pixels[noon.x][noon.y] >> 16) & 0xFF) > 0; // pix courant
 			nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
 
@@ -444,13 +448,13 @@ public class Main
 					}
 				}
 				if(!startpos) {
-				int i = 1;
+				int i = path.size() - 1;
 					do {
-						pos.x = path.get(path.size() - i).x;
-						pos.y = path.get(path.size() - i++).y;
-						
+						pos.x = path.get(i).x;
+						pos.y = path.get(i).y;
+						path.add(new Vec2i(pos.x, pos.y));
 						found = next(pixels, pos, path, prev);
-					
+						--i;
 	
 					}while(!found && !pos.equals(path.get(0)));
 				}
@@ -539,9 +543,15 @@ public class Main
 					if(samp> 0) {
 						boolean inc = true;
 						for(int x1 = -kernel; x1 <= kernel && inc; ++x1) {
-							if(x+x1 < 0 || x+x1 > WIDTH) continue;
+							if(x+x1 < 0 || x+x1 >= WIDTH) {
+								inc = false;
+								break;
+							}
 							for(int y1 = -kernel; y1 <= kernel && inc; ++y1) {
-								if(y + y1 < 0 || y + y1 > HEIGHT) continue;
+								if(y + y1 < 0 || y + y1 >= HEIGHT) {
+									inc = false;
+									break;
+								}
 								int samp1 = (tmp[x+x1][y + y1] >> 16) & 0xFF;
 								inc &= samp1 > 0;
 							}
@@ -557,7 +567,7 @@ public class Main
 	}
 
 	
-	// Rasterisation / Tranchage
+	// Rasterisation / Tranchage ---------------------------------------
 	public static Slice getSlice(int numSlice, Obj3DModel obj) {
 		int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / VERTICAL_STEP);
 		numSlice = Math.min(nbSlice, numSlice);
@@ -696,8 +706,16 @@ public class Main
 
 	// -------------------------------------------
 	// MainApp
-	public static void slicer(){
-		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
+	public static void slicer(Obj3DModel obj){
+		if(obj == null) {
+			obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
+			int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / PIXEL_SIZE);
+			int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / PIXEL_SIZE);
+			WIDTH = h_size;
+			HEIGHT = v_size;
+			OFFSET.x = h_size *0.5f;
+			OFFSET.y = v_size *0.5f;
+		}
 		Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));
 		BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
 		Graphics2D ctx = image.createGraphics();
@@ -735,20 +753,11 @@ public class Main
 				}
 			}
 			
-			 //slice.fill(ctx);
-			// Printing section-------------------------- 
-			// Graphics2D ctx = image.createGraphics();
-			//System.out.println("frame " + num + " nb d'edge: " + edges.size() + " z height: "+ plane.m_Point.z);
-			
-			//Vec2f offset = new Vec2f(50.f, 50.f);
-			//slice.printEdge(ctx, offset, 5.f);
-	
 			if(saveImage(image, RESULT_PATH +"cpu/" + NAME  + num + ".png"))
 				num++;
 	
 		}
 	}
-	
 
 	//
 	// Dans ce TP
