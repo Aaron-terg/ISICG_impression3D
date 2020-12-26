@@ -55,7 +55,7 @@ public class Main
 	public static int WIDTH = 800;
 	public static int HEIGHT = 600;
 	public static float BUSE_SIZE = 0.4f;
-	public static float PIXEL_SIZE = 0.2f; 
+	public static float PIXEL_SIZE = 0.05f; 
 	public static float VERTICAL_STEP = 0.2f; 
 	public static Vec2f OFFSET = new Vec2f(WIDTH / 2, HEIGHT / 2);
 
@@ -93,12 +93,16 @@ public class Main
 	
 	public static void main(String[] args)
 	{
-		//slicer();
+		slicer();
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
 		int numSlice = 113;
 		Slice slice = getSlice(numSlice, obj);
 		Vec3f size = obj.getMax().sub(obj.getMin());
-		
+		int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / PIXEL_SIZE);
+		int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / PIXEL_SIZE);
+
+		OFFSET.x = h_size;
+		OFFSET.y = v_size;
 		slice.remap(OFFSET, PIXEL_SIZE);
 
 		//slicerCPU(slice, 5);
@@ -139,8 +143,9 @@ public class Main
 	  	for(int i = 0; i < points.size(); ++i) 
 	  		img2.setRGB(points.get(i).x, points.get(i).y, 0x00FF00);
 	
-		ArrayList<ArrayList<Vec2i>> paths = getPaths(erode(pixels, 1));
+		ArrayList<ArrayList<Vec2i>> paths;// = getPaths(erode(pixels, 1));
 		setData(img2, pixels);
+	
 		Graphics2D ctxpath = img.createGraphics();
 		int k = 0;
 		int nberode = 1;
@@ -351,78 +356,110 @@ public class Main
 		
 		return paths;
 	}
-	public static ArrayList<Vec2i> getPath(int[][] pixels,Vec2i pos) {
-		
-		ArrayList<Vec2i> path = new ArrayList<>();
-		Vec2i tmp = new Vec2i(0, 0);
-		path.add(new Vec2i(pos.x, pos.y));
-		int x = 0, y = 1, j= 0;
-
+	
+	public static boolean next(int[][] pixels, Vec2i pos, ArrayList<Vec2i> path, Deque<Vec2i> neighbors) {
 		Vec2i neighbor = new Vec2i(0, 0);
 		Vec2i noon = new Vec2i(0,0);
+
 		boolean found = false;
 		boolean val = false;
 		boolean nval = false;
-		do {
-			found = false;
-		
-			boolean sens = false;
-			noon.x = pos.x;
-			noon.y = pos.y + 1;
+		boolean sens = false;
+
+
+		int x = 0, y = 1;
+		noon.x = pos.x + x;
+		noon.y = pos.y + y;
+		int j = 0;
+		while(j++ < 8) { // rotation horaire 8 connexe
+			if(sens) {
+				if(x > 0) --y;
+				else if(x < 0) ++y;
+			}else {
+				if(y > 0) ++x;
+				else if(y < 0) --x;
+			}
+			sens ^= ((x+y) & 1) == 0;
 			
-			x = 0; y = 1;
-			j = 0;
-			while(j++ < 8) { // rotation horaire 8 connexe
-				if(sens) {
-					if(x > 0) --y;
-					else if(x < 0) ++y;
-				}else {
-					if(y > 0) ++x;
-					else if(y < 0) --x;
-				}
-				sens ^= ((x+y) & 1) == 0;
-				
-				neighbor.x = pos.x + x;
-				neighbor.y = pos.y + y;
-				if(neighbor.x < 0 || neighbor.x > WIDTH || neighbor.y < 0 || neighbor.y > HEIGHT) continue;
-				val = ((pixels[noon.x][noon.y] >> 16) & 0xFF) > 0; // pix courant
-				nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
-				/*
-				if(neighbor.x < 0 || neighbor.y < 0 || neighbor.x > WIDTH || neighbor.y > HEIGHT) {
-				 
-					neighbor.x = pos.x + x;
-					neighbor.y = pos.y + y;
-					
+			neighbor.x = pos.x + x;
+			neighbor.y = pos.y + y;
+			if(neighbor.x < 0 || neighbor.x > WIDTH || neighbor.y < 0 || neighbor.y > HEIGHT) continue;
+	
+			val = ((pixels[noon.x][noon.y] >> 16) & 0xFF) > 0; // pix courant
+			nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
+
+			if(val != nval) {
+				Vec2i tmp = new Vec2i(0, 0);
+				if(nval) {
 					tmp.x = neighbor.x;
 					tmp.y = neighbor.y;
-					continue;
-				}
-				*/
-				if(val != nval) {
-					if(nval) {
-						tmp.x = neighbor.x;
-						tmp.y = neighbor.y;
-					}else {
-						tmp.x = noon.x;
-						tmp.y = noon.y;
-					}
-					int id = path.indexOf(tmp);
-					if(id < 0) {
-						pos.x = tmp.x;
-						pos.y = tmp.y;
-						path.add(new Vec2i(pos.x, pos.y));
-						//pixels[pos.x][pos.y] = 0x00FF00;
-						found = true;
-						break;
-					}
+				}else {
 					
+					tmp.x = noon.x;
+					tmp.y = noon.y;
 				}
-		
-				noon.x = neighbor.x;
-				noon.y = neighbor.y;
+				int id = path.indexOf(tmp);
+				if(id < 0) {
+					
+					pos.x = tmp.x;
+					pos.y = tmp.y;
+					path.add(new Vec2i(pos.x, pos.y));
+					
+					return true;
+				}else
+					neighbors.addLast(tmp);
+					
 				
-				val = nval;
 			}
+			
+			noon.x = neighbor.x;
+			noon.y = neighbor.y;
+			
+			val = nval;
+		}
+		return false;
+	}
+	public static ArrayList<Vec2i> getPath(int[][] pixels,Vec2i pos) {
+		
+		ArrayList<Vec2i> path = new ArrayList<>();
+		path.add(new Vec2i(pos.x, pos.y));
+		
+		Deque<Vec2i> prev = new LinkedList<>();
+		boolean found = false;
+		boolean startpos = false;
+		do {
+			found = next(pixels, pos, path, prev);
+			// begin read back
+			if(!found) {
+				//System.out.println("didn't find next path");
+				while(!prev.isEmpty()) {
+					Vec2i p = prev.poll();
+					if(p.equals(path.get(0))) {
+						pos.x = p.x;
+						pos.y = p.y;
+						prev.clear();
+						found = next(pixels, pos, path, prev);
+						startpos = true;
+						//System.out.println("found start");
+					}
+				}
+				if(!startpos) {
+				int i = 1;
+					do {
+						pos.x = path.get(path.size() - i).x;
+						pos.y = path.get(path.size() - i++).y;
+						
+						found = next(pixels, pos, path, prev);
+					
+	
+					}while(!found && !pos.equals(path.get(0)));
+				}
+
+				
+			}
+			prev.clear();
+			
+			
 		}while(!pos.equals(path.get(0)) && found);
 		
 		return path;
@@ -491,21 +528,21 @@ public class Main
 		
 		int[][] erodePixs = copy(pixels);//img.getSubimage(0, 0, img.getWidth(), img.getHeight());
 		
-		int kernel = (int) ((BUSE_SIZE ) / PIXEL_SIZE);
+		int kernel = (int) ((BUSE_SIZE) / PIXEL_SIZE);
 		for(int i = nbErosion; i > 0; --i) {
 			int[][] tmp = copy(erodePixs);
 			clearData(erodePixs);
 			
 			for(int y = 0; y < tmp[0].length; ++y) {
 				for(int x = 0; x < tmp.length; ++x) {
-					int samp = tmp[x][y] & 0XFFFFFF;
+					int samp = (tmp[x][y] >> 16) & 0XFF;
 					if(samp> 0) {
 						boolean inc = true;
 						for(int x1 = -kernel; x1 <= kernel && inc; ++x1) {
 							if(x+x1 < 0 || x+x1 > WIDTH) continue;
 							for(int y1 = -kernel; y1 <= kernel && inc; ++y1) {
 								if(y + y1 < 0 || y + y1 > HEIGHT) continue;
-								int samp1 = tmp[x+x1][y + y1] & 0xFFFFFF;
+								int samp1 = (tmp[x+x1][y + y1] >> 16) & 0xFF;
 								inc &= samp1 > 0;
 							}
 						}
