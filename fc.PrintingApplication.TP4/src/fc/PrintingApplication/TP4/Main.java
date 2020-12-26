@@ -22,8 +22,13 @@ import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.Stack;
 
 import javax.imageio.ImageIO;
 
@@ -98,11 +103,10 @@ public class Main
 
 		//slicerCPU(slice, 5);
 		int[][] pixels = slicerGPU(slice, numSlice);
-		
 	
 
 		/*
-		Vec2i pos = getCorner(pixels);
+		Vec2i pos = getCorners(pixels).get(0);
 		int x = pos.x;
 		int y = pos.y;
 		pixels[x][y] = 0xFF;
@@ -111,25 +115,49 @@ public class Main
 		pixels[x][y+1] =0xFF;
 		pixels[x][y-1] = 0xFF;
 */
-		ArrayList<Vec2i> path = getPath(erode(pixels, 1));
 		
 		BufferedImage img = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 		BufferedImage img2 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 		
 		setData(img, pixels);
-		setData(img2, pixels);
-		Graphics2D ctx = img2.createGraphics();
-		for(int i = 0; i < path.size() - 1; ++i) {
 	
+	  	ArrayList<Vec2i[]> boxes = new ArrayList<>();
+	  	ArrayList<Vec2i> points = getCorners(pixels, boxes); 
+	  		  	
+	  		//pixels[points.get(i).x][points.get(i).y] = 0x00FF00;
 
-			ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+	  	setData(img2, pixels);
+
+	  	Graphics2D ctx = img2.createGraphics();
+		for(int i = 0; i < boxes.size(); ++i) {
+			ctx.draw(new Line2D.Float(boxes.get(i)[0].x, boxes.get(i)[0].y, boxes.get(i)[1].x, boxes.get(i)[0].y));
+			ctx.draw(new Line2D.Float(boxes.get(i)[1].x, boxes.get(i)[0].y, boxes.get(i)[1].x, boxes.get(i)[1].y));
+			ctx.draw(new Line2D.Float(boxes.get(i)[0].x, boxes.get(i)[1].y, boxes.get(i)[1].x, boxes.get(i)[1].y));
+			ctx.draw(new Line2D.Float(boxes.get(i)[0].x, boxes.get(i)[0].y, boxes.get(i)[0].x, boxes.get(i)[1].y));
+
 		}
+	  	for(int i = 0; i < points.size(); ++i) 
+	  		img2.setRGB(points.get(i).x, points.get(i).y, 0x00FF00);
+	
+		ArrayList<ArrayList<Vec2i>> paths = getPaths(erode(pixels, 1));
+		setData(img2, pixels);
+		Graphics2D ctxpath = img.createGraphics();
+		int k = 0;
+		int nberode = 1;
+		while(k < nberode) {
+			paths = getPaths(erode(pixels, k++));
+			for(ArrayList<Vec2i> path : paths) {
+				for(int i = 0; i < path.size() - 1; ++i)
+					ctxpath.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+			}
+		}
+		
 		saveImage(img, RESULT_PATH + NAME  + "GPU" + numSlice + ".png");
 		saveImage(img2, RESULT_PATH + NAME  + "GPUPath" + numSlice + ".png");
 	
 		
-		setData(img, erode(pixels, 1));
-		saveImage(img, RESULT_PATH + NAME  + "Erode" + numSlice + ".png");
+	//	setData(img, erode(pixels, 1));
+	//	saveImage(img, RESULT_PATH + NAME  + "Erode" + numSlice + ".png");
 
 	}
 	// IMG buffer - int[][] pixel
@@ -171,33 +199,162 @@ public class Main
 	}
 	
 	// Generate path
-	public static Vec2i getCorner(int[][] pixels) {
-			
+	public static ArrayList<Vec2i> getCorners(int[][] pixels) {		
+		return getCorners(pixels, null);
+	}
+	
+	
+	public static ArrayList<Vec2i> getCorners(int[][] pixels, ArrayList<Vec2i[]> BoundaryBoxes){
+		
+		ArrayList<Vec2i> positions = new ArrayList<>();
+		
+		// allboxes[0] = island, allboxes[1] = hole
+		ArrayList<Vec2i[]> allboxes[] = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
+		ArrayList<Vec2i[]> bboxes = allboxes[0]; // ref of one of the allboxes 
+		ArrayList<Vec2i[]> upd = new ArrayList<>(); // ref of one of the allboxes 
 
-		int minx = Integer.MAX_VALUE;
+		Stack<Integer> mins = new Stack<>();
+		
+		int minx = Integer.MAX_VALUE, max = -1, min;
+		boolean hole = false, stillin = false, added = false;
 		int m = -1;
+		boolean quit = false;
 		Vec2i pos = new Vec2i(0,0);
-		for(int y = 0; y < pixels[0].length && m < 0 ; ++y) {
+		
+		for(int y = 0; y < pixels[0].length; ++y) {
+			
+			mins.clear();
 			for(int x = 0; x < pixels.length; ++x) {
-				int samp = pixels[x][y];
+				int samp = (pixels[x][y] >> 16) & 0xFF;
+			
+				if(mins.empty()) {
+					if(samp > 0) {
+						mins.push(x);
+						bboxes = allboxes[0];
+						hole = false;
+					}
+				}else {
+					if((hole && (samp == 0)) || (!hole && (samp > 0))) continue;
+					else {
+						min = mins.peek();
+						max = x -1;
+						Vec2i[] box;
+						added = false;
+						for (Vec2i[] bbox : bboxes) {
+							
+							// test if we are still in the current shape
+								
+							// test is part of bbox
+							if(y == (bbox[1].y + 1)) {								
+								stillin |= (x <= bbox[1].x && x >= bbox[0].x);
+								if(min <= bbox[1].x && max >= bbox[0].x) {
+									//bbox[1].y = y;
+									box = bbox;
+									upd.add(bbox);
+									added = true;
+									bbox[0].x = Math.min(min,  bbox[0].x);
+									bbox[1].x = Math.max(max,  bbox[1].x);
+									
+								}
+								//stillin = false;
+							}
+						}
+						if(!added) 
+							bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});
+					
+							
+						// changement de forme mais dans le même ilôt
+						if(stillin) {
+							mins.add(x);
+							// si dans un trou alors on reprend les bbox des ilots
+							// sinon ceux des trous
+							hole = ((mins.size() & 1) == 0);
+							bboxes = allboxes[hole ? 0 : 1];
+						}else
+							mins.pop();
+					}
+					
+				}
+				/*
 				int d =x + y;//(float) new Vec2i(x, y).length();
 				if(((samp  >> 16) & 0xFF) > 0 && minx > d) {
-					System.out.println("position: " + x + " " + y);
 					minx = d;
 					m = x;
 					pos.x = x;
 					pos.y = y;	
 				}
+				*/
 			}
+			for(Vec2i[] bbox: upd) bbox[1].y = y;
+			upd.clear();
+
+			
 		}
+
 		
-		return pos;
+		for (int i = 0; i < allboxes.length; i++) {
+			// fusion des bbox superposé
+			for(int j = 0; j < allboxes[i].size(); ++j) {
+				Vec2i[] b1 = allboxes[i].get(j);
+				for(int k = j+1; k < allboxes[i].size(); ) {
+					Vec2i[] b2 = allboxes[i].get(k);
+					int vmin = 0, vmax = 0;
+					if(b2[0].x < b1[0].x -1) vmin += 1;
+					else if(b2[0].x > b1[1].x +1) vmin += 4;
+					if(b2[0].y < b1[0].y -1) vmin += 2;
+					else if(b2[0].y > b1[1].y +1) vmin += 8;
+					
+					if(b2[1].x < b1[0].x -1) vmax += 1;
+					else if(b2[1].x > b1[1].x +1) vmax += 4;
+					if(b2[1].y < b1[0].y -1) vmax += 2;
+					else if(b2[1].y > b1[1].y + 1) vmax += 8;
+					
+					if((vmax & vmin) == 0) {
+						b1[0].x = Math.min(b1[0].x, b2[0].x);
+						b1[0].y = Math.min(b1[0].y, b2[0].y);
+						
+						b1[1].x = Math.max(b1[1].x, b2[1].x);
+						b1[1].y = Math.max(b1[1].y, b2[1].y);
+						Collections.swap(allboxes[i], k, allboxes[i].size() -1);
+						allboxes[i].remove(allboxes[i].size() -1);
+						k = j +1;	
+					}else
+						++k;	
+				}
+				hole = i == 1;
+				// premier point en haut à gauche
+				for(int x = b1[0].x; x < b1[1].x; ++x) {
+					int samp = (pixels[x][b1[0].y] >> 16) & 0xFF;
+					
+					if((hole && (samp == 0)) || (!hole && (samp > 0))) {
+						positions.add(new Vec2i(x, b1[0].y));
+						break;
+					}
+				}
+			}
+			if(BoundaryBoxes != null)
+				BoundaryBoxes.addAll(allboxes[i]);
+		}
+		return positions;
 	}
 	
-	public static ArrayList<Vec2i> getPath(int[][] pixels) {
+	public static ArrayList<ArrayList<Vec2i>> getPaths(int[][] pixels) {
+		ArrayList<ArrayList<Vec2i>> paths = new ArrayList<>();
+		ArrayList<Vec2i> corners = getCorners(pixels);
+		for(Vec2i pos: corners) {
+			ArrayList<Vec2i> path= getPath(pixels, pos), npath = new ArrayList<>();
+			// smooth path			
+		//	Deque<Vec2i> smPath = smoothPath(path, 0, path.size());
+		//	while(!smPath.isEmpty()) npath.add(smPath.poll());
+			paths.add(path);
+		}
+		
+		return paths;
+	}
+	public static ArrayList<Vec2i> getPath(int[][] pixels,Vec2i pos) {
 		
 		ArrayList<Vec2i> path = new ArrayList<>();
-		Vec2i pos = getCorner(pixels), tmp = new Vec2i(0, 0);
+		Vec2i tmp = new Vec2i(0, 0);
 		path.add(new Vec2i(pos.x, pos.y));
 		int x = 0, y = 1, j= 0;
 
@@ -227,7 +384,7 @@ public class Main
 				
 				neighbor.x = pos.x + x;
 				neighbor.y = pos.y + y;
-				
+				if(neighbor.x < 0 || neighbor.x > WIDTH || neighbor.y < 0 || neighbor.y > HEIGHT) continue;
 				val = ((pixels[noon.x][noon.y] >> 16) & 0xFF) > 0; // pix courant
 				nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
 				/*
@@ -271,11 +428,70 @@ public class Main
 		return path;
 	}
 	
+	public static Deque<Vec2i> smoothPath(ArrayList<Vec2i> path, int start, int end){
+		
+		int mid = end / 2;
+		float dist = 0f;
+		Deque<Vec2i> smoothedPath = new LinkedList<>();
+		
+		
+		Vec2i segment = path.get(mid).sub(path.get(start));
+		Vec2f N = new Vec2f(segment.y,- segment.x);
+		float nl = N.length();
+		
+		N.x /= nl;
+		N.y /= nl;
+		Vec2f max = new Vec2f(Float.MIN_NORMAL, -1);
+		for(int p = start; p < mid; ++p) {
+			Vec2f PS = new Vec2f(path.get(p).x - path.get(mid).x, path.get(p).y - path.get(mid).y);
+			dist = Math.abs(N.dot(PS));
+			if(dist > max.x) {
+				max.x = dist;
+				max.y = p;
+			}
+		}
+		if(max.x > 1.5f) {
+			smoothedPath.addAll(smoothPath(path, start, (int)max.y));
+			smoothedPath.addAll(smoothPath(path, (int)max.y, mid));
+		}
+		else if(max.y >= 0f)		
+			smoothedPath.addLast(path.get((int)max.y));
+		segment = path.get(end-1).sub(path.get(mid));
+		N.x  = segment.y;
+		N.y = -segment.x;
+		nl = N.length();
+		
+		N.x /= nl;
+		N.y /= nl;
+		max.x = Float.MIN_NORMAL;
+		max.y = -1;
+		for(int p = mid+1; p < end; ++p) {
+			Vec2f PS = new Vec2f(path.get(p).x - path.get(mid).x, path.get(p).y - path.get(mid).y);
+			dist = Math.abs(N.dot(PS));
+			if(dist > max.x) {
+				max.x = dist;
+				max.y = p;
+			}
+		}
+		
+		if(max.y >= 0f)		
+			smoothedPath.addLast(path.get((int)max.y));
+
+		if(max.x > 1.5f) {
+			smoothedPath.addAll(smoothPath(path, mid, (int)max.y));
+			smoothedPath.addAll(smoothPath(path, (int)max.y, end));
+		}
+
+	
+		
+		return smoothedPath;
+	}
+	
 	public static int[][] erode(int[][] pixels, int nbErosion) {
 		
 		int[][] erodePixs = copy(pixels);//img.getSubimage(0, 0, img.getWidth(), img.getHeight());
 		
-		int kernel = (int) ((BUSE_SIZE * 0.5f) / PIXEL_SIZE);
+		int kernel = (int) ((BUSE_SIZE ) / PIXEL_SIZE);
 		for(int i = nbErosion; i > 0; --i) {
 			int[][] tmp = copy(erodePixs);
 			clearData(erodePixs);
@@ -286,7 +502,9 @@ public class Main
 					if(samp> 0) {
 						boolean inc = true;
 						for(int x1 = -kernel; x1 <= kernel && inc; ++x1) {
+							if(x+x1 < 0 || x+x1 > WIDTH) continue;
 							for(int y1 = -kernel; y1 <= kernel && inc; ++y1) {
+								if(y + y1 < 0 || y + y1 > HEIGHT) continue;
 								int samp1 = tmp[x+x1][y + y1] & 0xFFFFFF;
 								inc &= samp1 > 0;
 							}
@@ -455,20 +673,38 @@ public class Main
 			edges.clear();
 			ctx.clearRect(0, 0, WIDTH, HEIGHT);
 	
+			//Slice slice = getSlice(num, obj);
+			
 			Slice slice = new Slice(plane.m_Point.z);
 			// intersection plane - triangles + raccordement ----------
 			for (int[] face : obj.faces) {
 				obj.getSlice(plane, face, edges);
 			}
-	
+			
 			slice.makeEdge(edges);
-			 slice.fill(ctx);
+			slice.remap(OFFSET, PIXEL_SIZE);
+			int[][] pixels = slicerGPU(slice, num);
+			
+			setData(image, pixels);
+			
+			ArrayList<ArrayList<Vec2i>> paths = getPaths(erode(pixels, 1));
+			int k = 0;
+			int nberode = 10;
+			while(k < nberode) {
+				paths = getPaths(erode(pixels, k++));
+				for(ArrayList<Vec2i> path : paths) {
+					for(int i = 0; i < path.size() - 1; ++i)
+						ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+				}
+			}
+			
+			 //slice.fill(ctx);
 			// Printing section-------------------------- 
 			// Graphics2D ctx = image.createGraphics();
 			//System.out.println("frame " + num + " nb d'edge: " + edges.size() + " z height: "+ plane.m_Point.z);
 			
-			Vec2f offset = new Vec2f(50.f, 50.f);
-			slice.printEdge(ctx, offset, 5.f);
+			//Vec2f offset = new Vec2f(50.f, 50.f);
+			//slice.printEdge(ctx, offset, 5.f);
 	
 			if(saveImage(image, RESULT_PATH +"cpu/" + NAME  + num + ".png"))
 				num++;
