@@ -90,7 +90,7 @@ public class Main
 	  	}
 	  	BufferedImage img3 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 	  	setData(img3, pixels);
-	  	saveImage(img, RESULT_PATH + NAME  + "Ref" + numSlice + ".png");
+	  	//saveImage(img, RESULT_PATH + NAME  + "Ref" + numSlice + ".png");
 		saveImage(img2, RESULT_PATH + NAME  + "CornerBox" + numSlice + ".png");
 		saveImage(img3, RESULT_PATH + NAME  + "Corners" + numSlice + ".png");
 
@@ -101,7 +101,7 @@ public class Main
 	{
 		NAME = "skull";
 		NAME = "yoda";
-	//	NAME = "CuteOcto";
+		NAME = "CuteOcto";
 	//	NAME = "fawn";
 		int numSlice = 5;
 		
@@ -114,10 +114,10 @@ public class Main
 		OFFSET.y = v_size *0.5f;
 
 		
-		//Rasterer.slicer(null); // <-- main application
+		testCorner(obj, numSlice);
 		//Rasterer.rasterCPU(slice, 5);
 		//Rasterer.rasterGPU(slice, 5);
-		testCorner(obj, numSlice);
+		Rasterer.slicer(null); // <-- main application
 		
 
 	}
@@ -439,9 +439,10 @@ public class Main
 		int m = -1;
 		boolean quit = false;
 		Vec2i pos = new Vec2i(0,0);
-		
-		for(int y = 0; y < pixels[0].length; ++y) {
 			
+		int prevupsamp = 0;
+		
+		for(int y = 0; y < pixels[0].length; ++y) {	
 			mins.clear();
 			for(int x = 0; x < pixels.length; ++x) {
 				int samp = (pixels[x][y] >> 16) & 0xFF;
@@ -488,21 +489,13 @@ public class Main
 							// si dans un trou alors on reprend les bbox des ilots
 							// sinon ceux des trous
 							hole = ((mins.size() & 1) == 0);
-							bboxes = allboxes[hole ? 0 : 1];
+							bboxes = allboxes[hole ? 1 : 0];
 						}else
 							mins.pop();
 					}
-					
+				
 				}
-				/*
-				int d =x + y;//(float) new Vec2i(x, y).length();
-				if(((samp  >> 16) & 0xFF) > 0 && minx > d) {
-					minx = d;
-					m = x;
-					pos.x = x;
-					pos.y = y;	
-				}
-				*/
+			
 			}
 			for(Vec2i[] bbox: upd) bbox[1].y = y;
 			upd.clear();
@@ -512,6 +505,37 @@ public class Main
 
 		
 		for (int i = 0; i < allboxes.length; i++) {
+			
+			// si boite de trou dans une boite d'ile on conserve
+			if(i == 1) {
+				for(int j = 0; j < allboxes[1].size(); ++j) {
+					boolean in = false;
+					Vec2i[] b2 = allboxes[1].get(j);
+					for(int k = 0; k < allboxes[0].size(); ++k) {
+						Vec2i[] b1 = allboxes[0].get(k);
+						int vmin = 0, vmax = 0;
+						if(b2[0].x < b1[0].x -1) vmin += 1;
+						else if(b2[0].x > b1[1].x +1) vmin += 4;
+						if(b2[0].y < b1[0].y -1) vmin += 2;
+						else if(b2[0].y > b1[1].y +1) vmin += 8;
+						
+						if(b2[1].x < b1[0].x -1) vmax += 1;
+						else if(b2[1].x > b1[1].x +1) vmax += 4;
+						if(b2[1].y < b1[0].y -1) vmax += 2;
+						else if(b2[1].y > b1[1].y + 1) vmax += 8;
+						
+						if((vmax | vmin) == 0) {
+							in = true;
+							break;
+						}								
+					}
+					if(!in) {
+						Collections.swap(allboxes[1], j, allboxes[1].size() -1);
+						allboxes[1].remove(allboxes[1].size() -1);
+					}
+				}
+			}
+			
 			// fusion des bbox superposé
 			for(int j = 0; j < allboxes[i].size(); ++j) {
 				Vec2i[] b1 = allboxes[i].get(j);
@@ -564,5 +588,96 @@ public class Main
 		return positions;
 	}
 	
+	
+	
+	/*
+	 
+	 	// trou
+					if(hole) {
+						if( (samp == 0) ) {
+							int upsamp = (pixels[x][y-1] >> 16) & 0xFF;
+							// si pixel au dessus est uniform (tout rouge /noir )
+							// alors on est encore peutetre dans un trou
+							if(prevupsamp == upsamp || (upsamp > 0)) {
+								prevupsamp = upsamp;
+								continue;
+							}else if(upsamp == 0) {
+								// test bboxe
+								stillin = false;
+								for(Vec2i[] bbox : bboxes) {
+									if(bbox[1].y +1 == y && (x <= bbox[1].x && x >= bbox[0].x)) {
+										stillin = true;
+										upd.add(bbox);
+									}
+								}
+								if(!stillin) {
+									bboxes.removeAll(upd);
+									hole = false;
+									added = false;
+
+									mins.pop();
+									int i = upd.size() -1;
+									while(i-- > minx)
+										upd.remove(i);
+								}else continue;
+							}
+						}
+						else {
+							min = mins.peek();
+							max = x -1;
+							Vec2i[] box;
+							added = false;
+							hole = false;
+							if(upd.size() > minx) added = true;
+							else bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});								
+							mins.pop();							
+						}
+					}else { // island
+						if( (samp > 0) ) continue;
+						else {
+							min = mins.peek();
+							max = x -1;
+							Vec2i[] box;
+							added = false;
+							for (Vec2i[] bbox : bboxes) {
+								
+								// test if we are still in the current shape
+									
+								// test is part of bbox
+								if(y == (bbox[1].y + 1)) {								
+									stillin |= (x <= bbox[1].x && x >= bbox[0].x);
+									if(min <= bbox[1].x && max >= bbox[0].x) {
+										//bbox[1].y = y;
+										box = bbox;
+										upd.add(bbox);
+										added = true;
+										bbox[0].x = Math.min(min,  bbox[0].x);
+										bbox[1].x = Math.max(max,  bbox[1].x);
+										
+									}
+									//stillin = false;
+								}
+							}
+							if(!added) 
+								bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});
+						
+								
+							// changement de forme mais dans le même ilôt
+							if(stillin) {
+								mins.add(x);
+								minx = upd.size();
+								prevupsamp = (pixels[x][y-1] >> 16) & 0xFF;
+								// si dans un trou alors on reprend les bbox des ilots
+								// sinon ceux des trous
+								hole = ((mins.size() & 1) == 0);
+								bboxes = allboxes[hole ? 1 : 0];
+							}else
+								mins.pop();
+						}
+					
+					}
+					
+	 
+	 */
 	
 }
