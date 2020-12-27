@@ -13,12 +13,6 @@ public class Vec2i
 		this.y = y;
 	}
 	
-	public Vec2i(Vec2i v)
-	{
-		this.x = v.x;
-		this.y = v.y;
-	}
-	
 	public Vec2i mul(int d)
 	{
 		return new Vec2i(x*d, y*d);

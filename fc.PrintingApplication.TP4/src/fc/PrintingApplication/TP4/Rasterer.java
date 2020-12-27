@@ -31,7 +31,7 @@ import fc.GLObjects.GLShaderMatrixParameter;
 import fc.Math.Matrix;
 import fc.Math.Plane;
 import fc.Math.Vec2f;
-import fc.Math.Vec2i;
+import fc.PrintingApplication.TP4.Vec2;
 import fc.Math.Vec3f;
 
 public class Rasterer {
@@ -310,7 +310,7 @@ public class Rasterer {
 				
 				Main.setData(image, pixels);
 				
-				ArrayList<ArrayList<Vec2i>> paths;
+				ArrayList<ArrayList<Vec2>> paths;
 				int k = 0;
 				int nberode = 10;
 				Color c = ctx.getColor();
@@ -319,14 +319,14 @@ public class Rasterer {
 				if(shells != null) {
 					
 				paths = Main.getPaths(shells);
-				for(ArrayList<Vec2i> path : paths) {
+				for(ArrayList<Vec2> path : paths) {
 					for(int i = 0; i < path.size() - 1; ++i)
 						ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
 				}
 				while((shells = Main.erode(shells, kernel)) != null) {
 					//shells = Main.erode(shells, kernel);
 					paths = Main.getPaths(shells);
-					for(ArrayList<Vec2i> path : paths) {
+					for(ArrayList<Vec2> path : paths) {
 						for(int i = 0; i < path.size() - 1; ++i)
 							ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
 					}

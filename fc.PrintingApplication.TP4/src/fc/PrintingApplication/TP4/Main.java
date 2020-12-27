@@ -15,7 +15,7 @@ import java.util.Stack;
 import javax.imageio.ImageIO;
 
 import fc.Math.Vec2f;
-import fc.Math.Vec2i;
+import fc.PrintingApplication.TP4.Vec2;
 
 
 
@@ -30,8 +30,8 @@ public class Main
 	public static float VERTICAL_STEP = 0.2f; 
 	public static Vec2f OFFSET = new Vec2f(WIDTH / 2, HEIGHT / 2);
 
-	final public static String OBJ_PATH = "obj/"; 
-	final public static String RESULT_PATH = "results/"; 
+	final public static String OBJ_PATH = "../obj/"; 
+	final public static String RESULT_PATH = "../results/"; 
 	public static String NAME = "skull";
 	
 	public static void testCorner(Obj3DModel obj, int numSlice) {
@@ -45,10 +45,10 @@ public class Main
 		setData(img, pixels);
 		
 		
-	  	ArrayList<Vec2i[]> boxes = new ArrayList<>();
-	  	ArrayList<Vec2i[]> holeBoxes = new ArrayList<>();
+	  	ArrayList<Vec2[]> boxes = new ArrayList<>();
+	  	ArrayList<Vec2[]> holeBoxes = new ArrayList<>();
 
-	  	ArrayList<Vec2i> points = getCorners(pixels, boxes, holeBoxes); 
+	  	ArrayList<Vec2> points = getCorners(pixels, boxes, holeBoxes); 
 	  		  	
 	  	BufferedImage img2 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 	  	setData(img2, pixels);
@@ -75,7 +75,7 @@ public class Main
 		ctx.setColor(c);
 
 	  	for(int i = 0; i < points.size(); ++i) {
-	  		Vec2i pos = points.get(i);
+	  		Vec2 pos = points.get(i);
 			for(int yd = -5; yd <= 5; ++yd)
 				for(int xd = -5; xd <= 5; ++xd) {
 					int x = pos.x + xd;
@@ -193,9 +193,9 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 	}
 	
 	// Path Generator ---------------------------------------------------
-	public static boolean next(int[][] pixels, Vec2i pos, ArrayList<Vec2i> path, Deque<Vec2i> neighbors) {
-		Vec2i neighbor = new Vec2i(0, 0);
-		Vec2i noon = new Vec2i(0,0);
+	public static boolean next(int[][] pixels, Vec2 pos, ArrayList<Vec2> path, Deque<Vec2> neighbors) {
+		Vec2 neighbor = new Vec2(0, 0);
+		Vec2 noon = new Vec2(0,0);
 
 		boolean found = false;
 		boolean val = false;
@@ -227,7 +227,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 			nval = ((pixels[neighbor.x][neighbor.y]  >> 16) & 0xFF) > 0; // pix suivant
 
 			if(val != nval) {
-				Vec2i tmp = new Vec2i(0, 0);
+				Vec2 tmp = new Vec2(0, 0);
 				if(nval) {
 					tmp.x = neighbor.x;
 					tmp.y = neighbor.y;
@@ -241,7 +241,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 					
 					pos.x = tmp.x;
 					pos.y = tmp.y;
-					path.add(new Vec2i(pos.x, pos.y));
+					path.add(new Vec2(pos.x, pos.y));
 					
 					return true;
 				}else
@@ -258,12 +258,12 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 		return false;
 	}
 	
-	public static ArrayList<Vec2i> getPath(int[][] pixels,Vec2i pos) {
+	public static ArrayList<Vec2> getPath(int[][] pixels,Vec2 pos) {
 		
-		ArrayList<Vec2i> path = new ArrayList<>();
-		path.add(new Vec2i(pos.x, pos.y));
+		ArrayList<Vec2> path = new ArrayList<>();
+		path.add(new Vec2(pos.x, pos.y));
 		
-		Deque<Vec2i> prev = new LinkedList<>();
+		Deque<Vec2> prev = new LinkedList<>();
 		boolean found = false;
 		boolean startpos = false;
 		do {
@@ -272,7 +272,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 			if(!found) {
 				//System.out.println("didn't find next path");
 				while(!prev.isEmpty()) {
-					Vec2i p = prev.poll();
+					Vec2 p = prev.poll();
 					if(p.equals(path.get(0))) {
 						pos.x = p.x;
 						pos.y = p.y;
@@ -287,7 +287,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 					do {
 						pos.x = path.get(i).x;
 						pos.y = path.get(i).y;
-						path.add(new Vec2i(pos.x, pos.y));
+						path.add(new Vec2(pos.x, pos.y));
 						found = next(pixels, pos, path, prev);
 						--i;
 	
@@ -304,37 +304,37 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 		return path;
 	}
 	
-	public static ArrayList<ArrayList<Vec2i>> getPaths(int[][] pixels) {
-		ArrayList<ArrayList<Vec2i>> paths = new ArrayList<>();
-		ArrayList<Vec2i> corners = getCorners(pixels);
-		for(Vec2i pos: corners) {
-			ArrayList<Vec2i> path= getPath(pixels, pos), npath = new ArrayList<>();
+	public static ArrayList<ArrayList<Vec2>> getPaths(int[][] pixels) {
+		ArrayList<ArrayList<Vec2>> paths = new ArrayList<>();
+		ArrayList<Vec2> corners = getCorners(pixels);
+		for(Vec2 pos: corners) {
+			ArrayList<Vec2> path= getPath(pixels, pos), npath = new ArrayList<>();
 			// smooth path			
-			ArrayList<Vec2i> smpath = smoothPath(path);			    
+			ArrayList<Vec2> smpath = smoothPath(path);			    
 			paths.add(smpath);
 		}
 		
 		return paths;
 	}
 	
-	public static ArrayList<Vec2i> smoothPath(ArrayList<Vec2i> path){
+	public static ArrayList<Vec2> smoothPath(ArrayList<Vec2> path){
 		
 		int mid = path.size() / 2;
-		ArrayList<Vec2i> smoothedPath = new ArrayList<>();
+		ArrayList<Vec2> smoothedPath = new ArrayList<>();
 		
 		float epsilon = (float)Math.sqrt(2);
 		
 		ArrayList<Integer> ids = new ArrayList<>();
 		ids.add(0);
 		ids.add(path.size() - 1);
-		Stack<List<Vec2i>> lists = new Stack<>();
+		Stack<List<Vec2>> lists = new Stack<>();
 		Stack<Integer> ofsts = new Stack<>();
 		ofsts.push(0);
 		lists.push(path);
 		float dist1 = Float.MIN_VALUE, dist2 = Float.MIN_VALUE;
 		int id1 = -1, id2 = -1;
 		while(!lists.isEmpty()) {
-			List<Vec2i> l = lists.pop();
+			List<Vec2> l = lists.pop();
 			int ofst = ofsts.pop();
 			mid = l.size() / 2;
 			dist1 = Float.MIN_VALUE;
@@ -446,22 +446,22 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 	}
 
 //  Corners-------------------------------------------
-	public static ArrayList<Vec2i> getCorners(int[][] pixels) {		
+	public static ArrayList<Vec2> getCorners(int[][] pixels) {		
 		return getCorners(pixels, null, null);
 	}
 	
-	public static ArrayList<Vec2i> getCorners(int[][] pixels, ArrayList<Vec2i[]> BoundaryBoxes){
+	public static ArrayList<Vec2> getCorners(int[][] pixels, ArrayList<Vec2[]> BoundaryBoxes){
 		return getCorners(pixels, BoundaryBoxes, null);
 	}
 
-	public static ArrayList<Vec2i> getCorners(int[][] pixels, ArrayList<Vec2i[]> BoundaryBoxes, ArrayList<Vec2i[]> BoundaryBoxesHole){
+	public static ArrayList<Vec2> getCorners(int[][] pixels, ArrayList<Vec2[]> BoundaryBoxes, ArrayList<Vec2[]> BoundaryBoxesHole){
 		
-		ArrayList<Vec2i> positions = new ArrayList<>();
+		ArrayList<Vec2> positions = new ArrayList<>();
 		
 		// allboxes[0] = island, allboxes[1] = hole
-		ArrayList<Vec2i[]> allboxes[] = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
-		ArrayList<Vec2i[]> bboxes = allboxes[0]; // ref of one of the allboxes 
-		ArrayList<Vec2i[]> upd = new ArrayList<>(); // ref of one of the allboxes 
+		ArrayList<Vec2[]> allboxes[] = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
+		ArrayList<Vec2[]> bboxes = allboxes[0]; // ref of one of the allboxes 
+		ArrayList<Vec2[]> upd = new ArrayList<>(); // ref of one of the allboxes 
 
 		Stack<Integer> mins = new Stack<>();
 		
@@ -469,7 +469,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 		boolean hole = false, stillin = false, added = false;
 		int m = -1;
 		boolean quit = false;
-		Vec2i pos = new Vec2i(0,0);
+		Vec2 pos = new Vec2(0,0);
 			
 		int prevupsamp = 0;
 		
@@ -489,9 +489,9 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 					else {
 						min = mins.peek();
 						max = x -1;
-						Vec2i[] box;
+						Vec2[] box;
 						added = false;
-						for (Vec2i[] bbox : bboxes) {
+						for (Vec2[] bbox : bboxes) {
 							
 							// test if we are still in the current shape
 								
@@ -511,7 +511,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 							}
 						}
 						if(!added) 
-							bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});
+							bboxes.add(new Vec2[] {new Vec2(min, y), new Vec2(max, y)});
 					
 							
 						// changement de forme mais dans le même ilôt
@@ -528,7 +528,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 				}
 			
 			}
-			for(Vec2i[] bbox: upd) bbox[1].y = y;
+			for(Vec2[] bbox: upd) bbox[1].y = y;
 			upd.clear();
 
 			
@@ -541,9 +541,9 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 			if(i == 1) {
 				for(int j = 0; j < allboxes[1].size(); ++j) {
 					boolean in = false;
-					Vec2i[] b2 = allboxes[1].get(j);
+					Vec2[] b2 = allboxes[1].get(j);
 					for(int k = 0; k < allboxes[0].size(); ++k) {
-						Vec2i[] b1 = allboxes[0].get(k);
+						Vec2[] b1 = allboxes[0].get(k);
 						int vmin = 0, vmax = 0;
 						if(b2[0].x < b1[0].x -1) vmin += 1;
 						else if(b2[0].x > b1[1].x +1) vmin += 4;
@@ -569,9 +569,9 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 			
 			// fusion des bbox superposé
 			for(int j = 0; j < allboxes[i].size(); ++j) {
-				Vec2i[] b1 = allboxes[i].get(j);
+				Vec2[] b1 = allboxes[i].get(j);
 				for(int k = j+1; k < allboxes[i].size(); ) {
-					Vec2i[] b2 = allboxes[i].get(k);
+					Vec2[] b2 = allboxes[i].get(k);
 					int vmin = 0, vmax = 0;
 					if(b2[0].x < b1[0].x -1) vmin += 1;
 					else if(b2[0].x > b1[1].x +1) vmin += 4;
@@ -601,7 +601,7 @@ public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
 					int samp = (pixels[x][b1[0].y] >> 16) & 0xFF;
 					
 					if((hole && (samp == 0)) || (!hole && (samp > 0))) {
-						positions.add(new Vec2i(x, b1[0].y));
+						positions.add(new Vec2(x, b1[0].y));
 						break;
 					}
 				}
