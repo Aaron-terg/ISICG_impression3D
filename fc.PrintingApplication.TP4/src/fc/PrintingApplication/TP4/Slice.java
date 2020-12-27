@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import fc.Math.Plane;
 import fc.Math.Vec2f;
+import fc.Math.Vec3f;
 
 public class Slice {
 
@@ -22,11 +24,45 @@ public class Slice {
     public Slice(float z) {
         this.z = z;
     }
+    
+    public Slice(Plane plane, Obj3DModel obj, boolean map) {
+		setSlice(plane, obj, map);
+    }
 
+    public Slice(Plane plane, Obj3DModel obj) {
+		this(plane, obj, false);
+    }
+    
+    public Slice(int numSlice, Obj3DModel obj, boolean map) {
+    	int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / Main.VERTICAL_STEP);
+		numSlice = Math.min(nbSlice, numSlice);		
+		Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));	
+		plane.m_Point.z += Main.VERTICAL_STEP * numSlice;
+		setSlice(plane, obj, map);
+    }
+    
+    public Slice(int numSlice, Obj3DModel obj) {
+    	this(numSlice, obj, false);
+    }
+
+    public void setSlice(Plane plane, Obj3DModel obj, boolean map) {
+    	ArrayList<EdgeSliceData> edges = new ArrayList<>();
+		this.z = (plane.m_Point.z);
+		// intersection plane - triangles + raccordement ----------
+		for (int[] face : obj.faces) {
+			obj.getSlice(plane, face, edges);
+		}
+		this.makeEdge(edges);
+		if(map) remap(Main.OFFSET, Main.PIXEL_SIZE);
+
+	}
+    
     // met à jour les ESD dans esds ou l'ajoute si point nouveau
     // ajoute l'arrête former dans edges
     public void makeEdge(ArrayList<EdgeSliceData> _edges) {
     	
+    	edges.clear();
+    	islands.clear();
     	if(_edges.isEmpty()) return;
     	islands.add(0);
     	EdgeSliceData edge = _edges.get(0);
@@ -89,31 +125,30 @@ public class Slice {
     public void remap(Vec2f offset, float pixSize) {
     	for(int i = 0; i < edges.size(); ++i) {
     		Vec2f v = edges.get(i);
-    		//v = v.add(offset).mul(pixSize);
-    	//	edges.get(i).x = (v.x + offset.x) * pixSize;
-    	//	edges.get(i).y = (v.y + offset.y) * pixSize;
+    	
     		edges.get(i).x = (v.x / pixSize ) + offset.x;
     		edges.get(i).y = (v.y / pixSize) + offset.y;
     		
     	
     	}
     }
+    
     // -------------------------------------------
     // Graphic
     // affiche les arrêtes en appliquant un décalage et une mise à l'échelle
-    public void printEdge(Graphics2D ctx, Vec2f offset, float pixSize) {
+    public void printEdge(Graphics2D ctx) {
         ctx.setColor(Color.RED);
         Vec2f e1, e2;
     	for(int j = 0; j < islands.size()-1; ++j) {
 
 			
 			for (int i =  islands.get(j); i < islands.get(j+1)-1; ++i) {
-				e1 = edges.get(i);//.add(offset).mul(pixSize);
-				e2 = edges.get((i+1));//.add(offset).mul(pixSize);
+				e1 = edges.get(i);
+				e2 = edges.get((i+1));
 				ctx.draw(new Line2D.Float(e1.x, e1.y, e2.x, e2.y));
 			}
-			e1 = edges.get(islands.get(j + 1) - 1);//.add(offset).mul(pixSize);
-			e2 = edges.get(islands.get(j));//.add(offset).mul(pixSize);
+			e1 = edges.get(islands.get(j + 1) - 1);
+			e2 = edges.get(islands.get(j));
 
 			ctx.draw(new Line2D.Float(e1.x, e1.y, e2.x, e2.y));
 		}
@@ -194,11 +229,6 @@ public class Slice {
                     fz.lines.add(edge);
                 }
             }
-        
-
-            // arrete plus grand que yMin zone courante
-            // for (EdgeSliceData edge : zones.get(i - 1).lines) {
-            // }
 
             // calcul arrete par arrete
             fz.fillLines(ctx);
