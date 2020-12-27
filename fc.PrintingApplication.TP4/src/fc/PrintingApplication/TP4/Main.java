@@ -97,12 +97,31 @@ public class Main
 	
 	}
 	
+	
+public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
+		
+		Slice slice = new Slice(numSlice, obj);
+
+		slice.remap(OFFSET, PIXEL_SIZE);
+		int[][] pixels = Rasterer.rasterGPU(slice, numSlice);
+		
+		BufferedImage img = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
+		setData(img, pixels);
+	  	saveImage(img, RESULT_PATH + NAME  + "Ref" + numSlice + ".png");
+	
+	
+	  	pixels = Rasterer.rasterGPUPeeling(slice, numSlice);
+	  	setData(img, pixels);
+	  	saveImage(img, RESULT_PATH + NAME  + "DepthPeeling" + numSlice + ".png");
+	}
+	
+	
 	public static void main(String[] args)
 	{
-		NAME = "skull";
 		NAME = "yoda";
 		NAME = "CuteOcto";
-	//	NAME = "fawn";
+		NAME = "fawn";
+		NAME = "skull";
 		int numSlice = 5;
 		
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
@@ -114,7 +133,7 @@ public class Main
 		OFFSET.y = v_size *0.5f;
 
 		
-		testCorner(obj, numSlice);
+		//testCorner(obj, numSlice);
 		//Rasterer.rasterCPU(slice, 5);
 		//Rasterer.rasterGPU(slice, 5);
 		Rasterer.slicer(null); // <-- main application
@@ -376,39 +395,51 @@ public class Main
 
 	}
 	
-	public static int[][] erode(int[][] pixels, int nbErosion) {
+	// return null if we reach a null image
+	public static int[][] erode(int[][] pixels, int kernel) {
+		
+		int[][] erodePixs = copy(pixels);	
+		int[][] tmp = copy(erodePixs);
+		clearData(erodePixs);
+		boolean nullimage = true;
+		for(int y = 0; y < tmp[0].length; ++y) {
+			for(int x = 0; x < tmp.length; ++x) {
+				int samp = (tmp[x][y] >> 16) & 0XFF;
+				if(samp> 0) {
+					boolean inc = true;
+					for(int x1 = -kernel; x1 <= kernel && inc; ++x1) {
+						if(x+x1 < 0 || x+x1 >= WIDTH) {
+							inc = false;
+							break;
+						}
+						for(int y1 = -kernel; y1 <= kernel && inc; ++y1) {
+							if(y + y1 < 0 || y + y1 >= HEIGHT) {
+								inc = false;
+								break;
+							}
+							int samp1 = (tmp[x+x1][y + y1] >> 16) & 0xFF;
+							inc &= samp1 > 0;
+						}
+					}
+					if(inc)	{
+						erodePixs[x][y] = 0xFF0000;
+						nullimage &= !inc;
+					}
+				}
+			}
+		}
+	
+		return nullimage ? null : erodePixs;
+	}
+	
+	
+	public static int[][] multerode(int[][] pixels, int nbErosion) {
 		
 		int[][] erodePixs = copy(pixels);//img.getSubimage(0, 0, img.getWidth(), img.getHeight());
 		
 		int kernel = (int) ((BUSE_SIZE) / PIXEL_SIZE);
 		for(int i = nbErosion; i > 0; --i) {
-			int[][] tmp = copy(erodePixs);
-			clearData(erodePixs);
-			
-			for(int y = 0; y < tmp[0].length; ++y) {
-				for(int x = 0; x < tmp.length; ++x) {
-					int samp = (tmp[x][y] >> 16) & 0XFF;
-					if(samp> 0) {
-						boolean inc = true;
-						for(int x1 = -kernel; x1 <= kernel && inc; ++x1) {
-							if(x+x1 < 0 || x+x1 >= WIDTH) {
-								inc = false;
-								break;
-							}
-							for(int y1 = -kernel; y1 <= kernel && inc; ++y1) {
-								if(y + y1 < 0 || y + y1 >= HEIGHT) {
-									inc = false;
-									break;
-								}
-								int samp1 = (tmp[x+x1][y + y1] >> 16) & 0xFF;
-								inc &= samp1 > 0;
-							}
-						}
-						if(inc)	erodePixs[x][y] = 0xFF0000;
-					}
-						
-				}
-			}
+			erodePixs = erode(erodePixs, kernel);
 		}
 		
 		return erodePixs;
@@ -587,97 +618,5 @@ public class Main
 		}
 		return positions;
 	}
-	
-	
-	
-	/*
-	 
-	 	// trou
-					if(hole) {
-						if( (samp == 0) ) {
-							int upsamp = (pixels[x][y-1] >> 16) & 0xFF;
-							// si pixel au dessus est uniform (tout rouge /noir )
-							// alors on est encore peutetre dans un trou
-							if(prevupsamp == upsamp || (upsamp > 0)) {
-								prevupsamp = upsamp;
-								continue;
-							}else if(upsamp == 0) {
-								// test bboxe
-								stillin = false;
-								for(Vec2i[] bbox : bboxes) {
-									if(bbox[1].y +1 == y && (x <= bbox[1].x && x >= bbox[0].x)) {
-										stillin = true;
-										upd.add(bbox);
-									}
-								}
-								if(!stillin) {
-									bboxes.removeAll(upd);
-									hole = false;
-									added = false;
-
-									mins.pop();
-									int i = upd.size() -1;
-									while(i-- > minx)
-										upd.remove(i);
-								}else continue;
-							}
-						}
-						else {
-							min = mins.peek();
-							max = x -1;
-							Vec2i[] box;
-							added = false;
-							hole = false;
-							if(upd.size() > minx) added = true;
-							else bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});								
-							mins.pop();							
-						}
-					}else { // island
-						if( (samp > 0) ) continue;
-						else {
-							min = mins.peek();
-							max = x -1;
-							Vec2i[] box;
-							added = false;
-							for (Vec2i[] bbox : bboxes) {
-								
-								// test if we are still in the current shape
-									
-								// test is part of bbox
-								if(y == (bbox[1].y + 1)) {								
-									stillin |= (x <= bbox[1].x && x >= bbox[0].x);
-									if(min <= bbox[1].x && max >= bbox[0].x) {
-										//bbox[1].y = y;
-										box = bbox;
-										upd.add(bbox);
-										added = true;
-										bbox[0].x = Math.min(min,  bbox[0].x);
-										bbox[1].x = Math.max(max,  bbox[1].x);
-										
-									}
-									//stillin = false;
-								}
-							}
-							if(!added) 
-								bboxes.add(new Vec2i[] {new Vec2i(min, y), new Vec2i(max, y)});
-						
-								
-							// changement de forme mais dans le même ilôt
-							if(stillin) {
-								mins.add(x);
-								minx = upd.size();
-								prevupsamp = (pixels[x][y-1] >> 16) & 0xFF;
-								// si dans un trou alors on reprend les bbox des ilots
-								// sinon ceux des trous
-								hole = ((mins.size() & 1) == 0);
-								bboxes = allboxes[hole ? 1 : 0];
-							}else
-								mins.pop();
-						}
-					
-					}
-					
-	 
-	 */
 	
 }
