@@ -3,6 +3,7 @@ package fc.PrintingApplication.TP4;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL44;
 
@@ -11,8 +12,8 @@ import fc.GLObjects.GLRenderTarget;
 
 public class GLRenderTargetStencil extends GLRenderTarget{
 	
-	protected int m_IdDepthView;
 	protected int m_IdDepthStencil;
+	
 	public GLRenderTargetStencil(int width, int height, int internalFormat, int format, int type) {
 		super(width, height, internalFormat, format, type);
 		// TODO Auto-generated constructor stub
@@ -47,25 +48,14 @@ public class GLRenderTargetStencil extends GLRenderTarget{
 		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT, GL11.GL_TEXTURE_2D, m_IdDepthStencil, 0);
 		GLError.check("Could not bind stencil attachment to framebuffer");
 		
-	/*	int DepthStencilRenderBuffer = GL30.glGenRenderbuffers();
-		GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, m_IdDepthStencil);
-		GLError.check("Could not bind renderbuffer");
-		
-		GL30.glRenderbufferStorage(GL30.GL_RENDERBUFFER, GL30.GL_DEPTH24_STENCIL8, width, height);
-		GLError.check("Could not store renderbuffer");
-		GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, 0);
-		GLError.check("Could not unbind renderbuffer");
-		*/
+
 		int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
 		if (status != GL30.GL_FRAMEBUFFER_COMPLETE)
 			throw new IllegalStateException("glCheckFramebufferStatus returned " + status);
 		GLError.check("glCheckFramebufferStatus returned GL_FRAMEBUFFER_COMPLETE but OpenGL is now in error state");
 
 		// https://stackoverflow.com/questions/27535727/opengl-create-a-depth-stencil-texture-for-reading
-	/*	m_IdDepthView = GL11.glGenTextures();
-		GL44.glTextureView(m_IdDepthView, GL11.GL_TEXTURE_2D, m_IdDepthStencil, GL30.GL_DEPTH24_STENCIL8, 0, 1, 0, 1);
-		GLError.check("Could not create texture view");
-		*/
+
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
 		GLError.check("Could not unbind framebuffer");
 	}
@@ -106,9 +96,22 @@ public class GLRenderTargetStencil extends GLRenderTarget{
 		}
 	}
 	
+	public void bind()
+	{
+		super.bind();
+        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, m_FboId);
+		GLError.check("Could not bind framebuffer");
+        GL20.glDrawBuffers(GL30.GL_COLOR_ATTACHMENT0);
+		GLError.check("Call to glDrawBuffers failed");
+	//	GL30.glDrawBuffer(GL30.GL_);
+        // Rien a faire ici concernant le DEPTH/STENCIL
+	}
 	
 	public void dispose()
 	{
+		super.dispose();
+	
+		/*
 		GL11.glDeleteTextures(m_IdDepth);
 		GLError.check("Could not delete texture " + m_IdDepth);
 		GL11.glDeleteTextures(m_IdTex);
@@ -119,18 +122,13 @@ public class GLRenderTargetStencil extends GLRenderTarget{
 		*/
 		GL11.glDeleteTextures(m_IdDepthStencil);
 		GLError.check("Could not delete texture " + m_IdDepthStencil);
-		GL30.glDeleteFramebuffers(m_FboId);
-		GLError.check("Could not delete framebuffer " + m_FboId);
+	//	GL30.glDeleteFramebuffers(m_FboId);
+	//	GLError.check("Could not delete framebuffer " + m_FboId);
 	}
 	
 	public int getDepthStencilTexId()
 	{
 		return m_IdDepthStencil;
-	}
-	
-	public int getDepthStencilViewTexId()
-	{
-		return m_IdDepthView;
 	}
 	
 

@@ -14,6 +14,7 @@ import static org.lwjgl.opengl.GL11.glClearColor;
 import static org.lwjgl.opengl.GL20.glBindAttribLocation;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
@@ -62,77 +63,23 @@ public class Main
 
 	final public static String OBJ_PATH = "obj/"; 
 	final public static String RESULT_PATH = "results/"; 
-	public static String NAME = "CuteOcto";
+	public static String NAME = "skull";
 	
-	public static float[][][] readBackAsFloat(int id, int format, int type) // each [height][width][4] (4: R,G,B,A. Each value is between [0.0f,1.0f])
-	{
-	
-		GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-		GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
-		int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
-		int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
-		int numComponents = 4; //rt.getNumPixelFormatComponents();
-		IntBuffer buffer = BufferUtils.createByteBuffer(width * height * 4 */* getSizeOfOneComponentsInBytes() */ numComponents).asIntBuffer();
-		GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, format, type, buffer);
-		float[][][] data = new float[height][width][numComponents];
-		for (int y = 0; y < height; y++)
-		{
-			for (int x = 0; x < width; x++)
-			{
-				// TODO: this only works when one component = 32 bits, as we have a IntBuffer
-				int i = (x + (width * y)) * numComponents;
-				for (int j=0; j < numComponents; j++)
-				{
-					int val = buffer.get(i + j);
-					data[y][x][j] = Float.intBitsToFloat(val);
-				}
-			}
-		}
-		return data;
-	}
-	
-	public static void main(String[] args)
-	{
-		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
-		int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / PIXEL_SIZE);
-		int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / PIXEL_SIZE);
-		WIDTH = h_size;
-		HEIGHT = v_size;
-		OFFSET.x = h_size *0.5f;
-		OFFSET.y = v_size *0.5f;
-		int numSlice = 113;
+	public static void testCorner(Obj3DModel obj, int numSlice) {
+		
 		Slice slice = getSlice(numSlice, obj);
 
 		slice.remap(OFFSET, PIXEL_SIZE);
-		slicer(null);
-
-
-		//slicerCPU(slice, 5);
 		int[][] pixels = slicerGPU(slice, numSlice);
-	
-
-		/*
-		Vec2i pos = getCorners(pixels).get(0);
-		int x = pos.x;
-		int y = pos.y;
-		pixels[x][y] = 0xFF;
-		pixels[x+1][y] = 0xFF;
-		pixels[x-1][y] = 0xFF;
-		pixels[x][y+1] =0xFF;
-		pixels[x][y-1] = 0xFF;
-*/
 		
 		BufferedImage img = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
-		BufferedImage img2 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
-		
 		setData(img, pixels);
-	
+		
+		
 	  	ArrayList<Vec2i[]> boxes = new ArrayList<>();
 	  	ArrayList<Vec2i> points = getCorners(pixels, boxes); 
 	  		  	
-	  		//pixels[points.get(i).x][points.get(i).y] = 0x00FF00;
-
+	  	BufferedImage img2 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
 	  	setData(img2, pixels);
 
 	  	Graphics2D ctx = img2.createGraphics();
@@ -143,29 +90,58 @@ public class Main
 			ctx.draw(new Line2D.Float(boxes.get(i)[0].x, boxes.get(i)[0].y, boxes.get(i)[0].x, boxes.get(i)[1].y));
 
 		}
-	  	for(int i = 0; i < points.size(); ++i) 
-	  		img2.setRGB(points.get(i).x, points.get(i).y, 0x00FF00);
-	
-		ArrayList<ArrayList<Vec2i>> paths;// = getPaths(erode(pixels, 1));
-		setData(img2, pixels);
-	
-		Graphics2D ctxpath = img.createGraphics();
-		int k = 0;
-		int nberode = 1;
-		while(k < nberode) {
-			paths = getPaths(erode(pixels, k++));
-			for(ArrayList<Vec2i> path : paths) {
-				for(int i = 0; i < path.size() - 1; ++i)
-					ctxpath.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
-			}
-		}
 		
-		saveImage(img, RESULT_PATH + NAME  + "GPU" + numSlice + ".png");
-		saveImage(img2, RESULT_PATH + NAME  + "GPUPath" + numSlice + ".png");
+	  	for(int i = 0; i < points.size(); ++i) {
+	  		Vec2i pos = points.get(i);
+			for(int yd = -5; yd <= 5; ++yd)
+				for(int xd = -5; xd <= 5; ++xd) {
+					int x = pos.x + xd;
+					int y = pos.y + yd;
+					if(x < 0 || y < 0 || x >= WIDTH || y >= HEIGHT) continue;
+					img2.setRGB(x, y, 0x00FF00);
+					pixels[x][y] = 0xFF;
+				}
+			
+					/*pixels[x][y] = 0xFF;
+			pixels[x+1][y] = 0xFF;
+			pixels[x-1][y] = 0xFF;
+			pixels[x][y+1] =0xFF;
+			pixels[x][y-1] = 0xFF;
+			*/
+	  		img2.setRGB(pos.x, pos.y, 0x00FF00);
+	  	
+	  	}
+	  	BufferedImage img3 = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
+	  	setData(img3, pixels);
+	  	saveImage(img, RESULT_PATH + NAME  + "Ref" + numSlice + ".png");
+		saveImage(img2, RESULT_PATH + NAME  + "CornerBox" + numSlice + ".png");
+		saveImage(img3, RESULT_PATH + NAME  + "Corners" + numSlice + ".png");
+
 	
+	}
+	
+	public static void main(String[] args)
+	{
+		NAME = "skull";
+	//	NAME = "yoda";
+	//	NAME = "CuteOcto";
+	//	NAME = "fawn";
+		int numSlice = 5;
 		
-	//	setData(img, erode(pixels, 1));
-	//	saveImage(img, RESULT_PATH + NAME  + "Erode" + numSlice + ".png");
+		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
+		int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / PIXEL_SIZE);
+		int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / PIXEL_SIZE);
+		WIDTH = h_size;
+		HEIGHT = v_size;
+		OFFSET.x = h_size *0.5f;
+		OFFSET.y = v_size *0.5f;
+
+		
+		//slicer(null); // <-- main application
+		//slicerCPU(slice, 5);
+		//slicerGPU(slice, 5);
+		testCorner(obj, numSlice);
+		
 
 	}
 	
@@ -352,11 +328,7 @@ public class Main
 		for(Vec2i pos: corners) {
 			ArrayList<Vec2i> path= getPath(pixels, pos), npath = new ArrayList<>();
 			// smooth path			
-			ArrayList<Vec2i> smpath = smoothPath(path);
-			//for(int i = 0; i < smpath.size(); ++i) {
-				
-			//}
-			    
+			ArrayList<Vec2i> smpath = smoothPath(path);			    
 			paths.add(smpath);
 		}
 		
@@ -452,7 +424,7 @@ public class Main
 					}
 				}
 				if(!startpos) {
-				int i = path.size() - 1;
+					int i = path.size() - 1;
 					do {
 						pos.x = path.get(i).x;
 						pos.y = path.get(i).y;
@@ -609,6 +581,34 @@ public class Main
 		return slice;
 	}
 	
+	public static float[][][] readBackAsFloat(int id, int format, int type) // each [height][width][4] (4: R,G,B,A. Each value is between [0.0f,1.0f])
+	{
+	
+		GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+		GL11.glPixelStorei(GL11.GL_PACK_ALIGNMENT, 1);
+		GL11.glBindTexture(GL11.GL_TEXTURE_2D, id);
+		int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+		int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+		int numComponents = 4; //rt.getNumPixelFormatComponents();
+		IntBuffer buffer = BufferUtils.createByteBuffer(width * height * 4 */* getSizeOfOneComponentsInBytes() */ numComponents).asIntBuffer();
+		GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, format, type, buffer);
+		float[][][] data = new float[height][width][numComponents];
+		for (int y = 0; y < height; y++)
+		{
+			for (int x = 0; x < width; x++)
+			{
+				// TODO: this only works when one component = 32 bits, as we have a IntBuffer
+				int i = (x + (width * y)) * numComponents;
+				for (int j=0; j < numComponents; j++)
+				{
+					int val = buffer.get(i + j);
+					data[y][x][j] = Float.intBitsToFloat(val);
+				}
+			}
+		}
+		return data;
+	}
+	
 	public static int[][] slicerGPU(Slice slice, int numSlice) {
 		glfwInit();
 		glfwDefaultWindowHints();
@@ -676,7 +676,25 @@ public class Main
 		
 		rt.unbind();
 		
-		float[][][] pixels = readBackAsFloat(rt.getFBOId(), format, type);
+		float[][][] pixels;
+	/*	
+		pixels = readBackAsFloat(rt.getDepthStencilTexId(), format, type);
+		int[][] imgPixSten = new int[WIDTH][HEIGHT];
+
+		for (int y=0; y < pixels.length; y++)
+		{
+			for (int x=0; x < pixels[0].length; x++)
+			{
+				int r = (int)(pixels[y][x][0] * 255.0f);
+				int g = (int)(pixels[y][x][1] * 255.0f);
+				int b = (int)(pixels[y][x][2] * 255.0f);
+
+				imgPixSten[x][y] = (r<<16) | (g<<8) | b;
+			}
+		}
+		*/
+		
+		pixels = readBackAsFloat(rt.getFBOId(), format, type);
 		
 		int[][] imgPix = new int[WIDTH][HEIGHT];
 		for (int y=0; y < pixels.length; y++)
@@ -690,6 +708,7 @@ public class Main
 				imgPix[x][y] = (r<<16) | (g<<8) | b;
 			}
 		}
+	
 		rt.dispose();
 		
 		return imgPix;
@@ -768,6 +787,8 @@ public class Main
 			ArrayList<ArrayList<Vec2i>> paths = getPaths(erode(pixels, 1));
 			int k = 0;
 			int nberode = 10;
+			Color c = ctx.getColor();
+			ctx.setColor(Color.BLUE);
 			while(k < nberode) {
 				paths = getPaths(erode(pixels, k++));
 				for(ArrayList<Vec2i> path : paths) {
@@ -775,7 +796,7 @@ public class Main
 						ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
 				}
 			}
-			
+			ctx.setColor(c);
 			if(saveImage(image, RESULT_PATH +"cpu/" + NAME  + num + ".png"))
 				num++;
 	
