@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Stack;
 
 import javax.imageio.ImageIO;
@@ -351,9 +352,12 @@ public class Main
 		for(Vec2i pos: corners) {
 			ArrayList<Vec2i> path= getPath(pixels, pos), npath = new ArrayList<>();
 			// smooth path			
-		//	Deque<Vec2i> smPath = smoothPath(path, 0, path.size());
-		//	while(!smPath.isEmpty()) npath.add(smPath.poll());
-			paths.add(path);
+			ArrayList<Vec2i> smpath = smoothPath(path);
+			//for(int i = 0; i < smpath.size(); ++i) {
+				
+			//}
+			    
+			paths.add(smpath);
 		}
 		
 		return paths;
@@ -469,63 +473,82 @@ public class Main
 		return path;
 	}
 	
-	public static Deque<Vec2i> smoothPath(ArrayList<Vec2i> path, int start, int end){
+	public static ArrayList<Vec2i> smoothPath(ArrayList<Vec2i> path){
 		
-		int mid = end / 2;
-		float dist = 0f;
-		Deque<Vec2i> smoothedPath = new LinkedList<>();
+		int mid = path.size() / 2;
+		ArrayList<Vec2i> smoothedPath = new ArrayList<>();
 		
+		float epsilon = (float)Math.sqrt(2);
 		
-		Vec2i segment = path.get(mid).sub(path.get(start));
-		Vec2f N = new Vec2f(segment.y,- segment.x);
-		float nl = N.length();
-		
-		N.x /= nl;
-		N.y /= nl;
-		Vec2f max = new Vec2f(Float.MIN_NORMAL, -1);
-		for(int p = start; p < mid; ++p) {
-			Vec2f PS = new Vec2f(path.get(p).x - path.get(mid).x, path.get(p).y - path.get(mid).y);
-			dist = Math.abs(N.dot(PS));
-			if(dist > max.x) {
-				max.x = dist;
-				max.y = p;
+		ArrayList<Integer> ids = new ArrayList<>();
+		ids.add(0);
+		ids.add(path.size() - 1);
+		Stack<List<Vec2i>> lists = new Stack<>();
+		Stack<Integer> ofsts = new Stack<>();
+		ofsts.push(0);
+		lists.push(path);
+		float dist1 = Float.MIN_VALUE, dist2 = Float.MIN_VALUE;
+		int id1 = -1, id2 = -1;
+		while(!lists.isEmpty()) {
+			List<Vec2i> l = lists.pop();
+			int ofst = ofsts.pop();
+			mid = l.size() / 2;
+			dist1 = Float.MIN_VALUE;
+			id1 = -1;
+			Vec2f seg = new Vec2f(-(l.get(mid).y - l.get(0).y), (l.get(mid).x - l.get(0).x));
+			float len = seg.length();
+			seg.mul(1f / len);
+			for(int i = 0; i < mid; ++i) {
+				Vec2f p = new Vec2f(l.get(i).x - l.get(0).x , l.get(i).y - l.get(0).y);
+				float d = Math.abs(p.dot(seg));// / len;
+				
+				if(dist1 < d) {
+					dist1 = d;
+					id1 = i;
+				}
+				
 			}
-		}
-		if(max.x > 1.5f) {
-			smoothedPath.addAll(smoothPath(path, start, (int)max.y));
-			smoothedPath.addAll(smoothPath(path, (int)max.y, mid));
-		}
-		else if(max.y >= 0f)		
-			smoothedPath.addLast(path.get((int)max.y));
-		segment = path.get(end-1).sub(path.get(mid));
-		N.x  = segment.y;
-		N.y = -segment.x;
-		nl = N.length();
-		
-		N.x /= nl;
-		N.y /= nl;
-		max.x = Float.MIN_NORMAL;
-		max.y = -1;
-		for(int p = mid+1; p < end; ++p) {
-			Vec2f PS = new Vec2f(path.get(p).x - path.get(mid).x, path.get(p).y - path.get(mid).y);
-			dist = Math.abs(N.dot(PS));
-			if(dist > max.x) {
-				max.x = dist;
-				max.y = p;
+			
+			dist2 = Float.MIN_VALUE;
+			id2 = -1;
+			for(int i = mid; i < l.size(); ++i) {
+				Vec2f p = new Vec2f(l.get(i).x - l.get(0).x , l.get(i).y - l.get(0).y);
+				float d =Math.abs(p.dot(seg));
+				if(dist2 < d) {
+					dist2 = d;
+					id2 = i;
+				}
+				
 			}
+			if(id1 >= 0 ) {
+				
+				ids.add((ofst + id1));
+				if(dist1 > epsilon) {
+					lists.push(l.subList(0, id1));
+					lists.push(l.subList(id1, mid));
+					
+					ofsts.add(ofst);
+					ofsts.add(ofst + id1);
+				}
+			}
+			if(id2 < 0) continue;
+			ids.add((ofst + id2));
+			if(dist2 > epsilon) {
+				lists.push(l.subList(id2, l.size()));
+				lists.push(l.subList(mid, id2));
+				
+				ofsts.add(ofst + id2);
+				ofsts.add(ofst + mid);
+			}
+			
 		}
 		
-		if(max.y >= 0f)		
-			smoothedPath.addLast(path.get((int)max.y));
-
-		if(max.x > 1.5f) {
-			smoothedPath.addAll(smoothPath(path, mid, (int)max.y));
-			smoothedPath.addAll(smoothPath(path, (int)max.y, end));
+		Collections.sort(ids);
+		for(int i = 0; i <ids.size(); ++i) {
+			smoothedPath.add(path.get(ids.get(i)));
 		}
-
-	
-		
 		return smoothedPath;
+
 	}
 	
 	public static int[][] erode(int[][] pixels, int nbErosion) {
