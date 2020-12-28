@@ -20,6 +20,10 @@ import java.awt.geom.Line2D;
 import java.awt.image.BufferedImage;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL;
@@ -29,7 +33,7 @@ import org.lwjgl.opengl.GL30;
 import fc.GLObjects.GLProgram;
 import fc.GLObjects.GLShaderMatrixParameter;
 import fc.Math.Matrix;
-import fc.Math.Plane;
+import fc.PrintingApplication.TP4.Plane;
 import fc.Math.Vec2f;
 import fc.PrintingApplication.TP4.Vec2;
 import fc.Math.Vec3f;
@@ -176,88 +180,7 @@ public class Rasterer {
 			rt.dispose();
 			
 			return imgPix;
-		}
-		
-		public static int[][] rasterGPUPeeling(Slice slice, int numSlice) {
-			if(shader == null || matParam == null)
-				initGPU();
-			
-			// Fan tesselation section-------------------------- 
-			int nbIsland = slice.islands.size() -1;
-			ArrayList<GLVec2fTriangle> tris = new ArrayList<>();
-			GLVec2fTriangle tri = new GLVec2fTriangle(slice);
-			for(int i = 0; i < slice.islands.size() -1; ++i) {
-				int beg = slice.islands.get(i);
-				int end = slice.islands.get(i+1);
-				Vec2f a[] = new Vec2f[end - beg];
-				tris.add(new GLVec2fTriangle(slice.edges.subList(beg, end)));
-				
-				
-			}
-			
-			int interal_format = GL30.GL_RGBA32I,
-					format = GL30.GL_RGBA_INTEGER,
-					type = GL11.GL_INT;
-			GLRenderTargetStencil rt = new GLRenderTargetStencil(Main.WIDTH, Main.HEIGHT, interal_format, format, type);
-
-			
-			// Printing section-------------------------- 
-			GL11.glViewport(0, 0, Main.WIDTH, Main.HEIGHT);
-			rt.bind();
-	        
-			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL11.GL_STENCIL_BUFFER_BIT);
-	        
-	   
-	        // Stencil test section-------------------------- 
-	    	GL11.glEnable(GL11.GL_STENCIL_TEST);		
-			GL11.glStencilMask(0xFF);
-			GL11.glStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_INVERT);
-			GL11.glStencilFunc(GL11.GL_ALWAYS, 1, 0xFF);
-			GL11.glColorMask(false,false,false,true);
-			
-			shader.begin();
-				matParam.set(Matrix.createOrtho(0, Main.WIDTH, 0, Main.HEIGHT, -1, 1));
-				tri.render();
-			shader.end();
-		
-			// Pass 2 -------------------------- 
-
-			GL11.glStencilFunc(GL11.GL_NOTEQUAL, 0, 0xFF);
-			GL11.glStencilMask(0x00);
-			GL11.glColorMask(true,true,true,true);
-
-			shader.begin();
-				matParam.set(Matrix.createOrtho(0, Main.WIDTH, 0, Main.HEIGHT, -1, 1));
-				tri.render();
-			shader.end();
-			
-			rt.unbind();
-			
-
-			float[][][] pixels;
-			
-			pixels = rt.readBackAsFloat(); //readBackAsFloat(rt.getFBOId(), format, type);
-			
-			int[][] imgPix = new int[Main.WIDTH][Main.HEIGHT];
-			for (int y=0; y < pixels.length; y++)
-			{
-				for (int x=0; x < pixels[0].length; x++)
-				{
-					int r = (int)(pixels[y][x][0] * 255.0f);
-					int g = (int)(pixels[y][x][1] * 255.0f);
-					int b = (int)(pixels[y][x][2] * 255.0f);
-
-					imgPix[x][y] = (r<<16) | (g<<8) | b;
-				}
-			}
-		
-			rt.dispose();
-			
-			return imgPix;
-		}
-		
-		
+		}		
 		
 		public static int[][] rasterCPU(Slice slice, int numSlice) {
 
@@ -272,10 +195,7 @@ public class Rasterer {
 			return Main.getData(image);
 		}
 		
-
-		// -------------------------------------------
-		// MainApp
-		public static void slicer(Obj3DModel obj){
+		public static void slicer2(Obj3DModel obj){
 			if(obj == null) {
 				obj = new Obj3DModel(Main.OBJ_PATH + Main.NAME + ".obj");
 				int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / Main.PIXEL_SIZE);
@@ -297,9 +217,6 @@ public class Rasterer {
 			Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));
 			Slice slice = new Slice();
 			ArrayList<EdgeSliceData> edges = new ArrayList<>();
-			int kernel = (int) ((Main.BUSE_SIZE) / Main.PIXEL_SIZE);
-			int kernelPerimeter = (int) ((Main.BUSE_SIZE * 0.5) / Main.PIXEL_SIZE);
-			int[][] shells;
 			for (; plane.m_Point.z <= obj.getMax().z; plane.m_Point.z += Main.VERTICAL_STEP) {
 				edges.clear();
 				ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
@@ -309,36 +226,183 @@ public class Rasterer {
 				int[][] pixels = rasterGPU(slice, num);
 				
 				Main.setData(image, pixels);
-				
-				ArrayList<ArrayList<Vec2>> paths;
-				int k = 0;
-				int nberode = 10;
 				Color c = ctx.getColor();
+				
+			
+				ctx.setColor(c);
+				if(Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + num + ".png"))
+					num++;
+		
+			}
+		}
+
+		// -------------------------------------------
+		// MainApp
+		public static void slicer(Obj3DModel obj){
+			if(obj == null) {
+				obj = new Obj3DModel(Main.OBJ_PATH + Main.NAME + ".obj");
+				int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / Main.PIXEL_SIZE);
+				int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / Main.PIXEL_SIZE);
+				Main.WIDTH = h_size;
+				Main.HEIGHT = v_size;
+				Main.OFFSET.x = h_size *0.5f;
+				Main.OFFSET.y = v_size *0.5f;
+			}
+
+			BufferedImage image = new BufferedImage(Main.WIDTH, Main.HEIGHT, BufferedImage.TYPE_INT_RGB);
+			Graphics2D ctx = image.createGraphics();
+						
+			int kernel = (int) ((Main.BUSE_SIZE) / Main.PIXEL_SIZE);
+			int kernelPerimeter = (int) ((Main.BUSE_SIZE * 0.5) / Main.PIXEL_SIZE);
+			int[][] shells;
+			
+			int num = 0;
+			int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / Main.VERTICAL_STEP);
+			
+			// for each plane along z
+			Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));
+			Slice slice = new Slice(plane, obj, true);
+			Deque<int[][]> slices = new LinkedList<>();
+			int[][] pixels = rasterGPU(slice, 0);
+			slices.add(pixels);
+			
+			int[][] dist = new int[Main.WIDTH][Main.HEIGHT];
+			for(int i = 0; i< Main.WIDTH; ++i)
+				for(int j = 0; j < Main.HEIGHT; ++j) {
+					if( ((pixels[i][j] >> 16) & 0xFF)  == 0) dist[i][j] = -1;
+					else dist[i][j] = 0;
+				}
+			
+			plane.m_Point.z +=  Main.VERTICAL_STEP;
+
+			slice.setSlice(plane, obj, true);
+			slices.add(rasterGPU(slice, 1));
+
+			num = 0;
+			do {
+		
+				
+				// Color z axe ---------------------------------------
+				
+				pixels = slices.poll();
+			
+				int max = -1, n;
+			
+				for(int x = 0; x < Main.WIDTH; ++x) {
+					for(int y = 0; y < Main.HEIGHT; ++y) {
+						if(dist[x][y] >= 0) {
+
+							if(dist[x][y] < 4) pixels[x][y] = 0xFF0000;
+							else {
+								float u = ((float) dist[x][y]) / (float)nbSlice;
+								int val = ((int)(255f * (1f -u) + 64f * u));
+								pixels[x][y] =  val << 16;
+							}
+						}else pixels[x][y] = 0x000000;
+						
+						//if(((slices.peek()[x][y] >> 16) & 0xFF) > 0) ++dist[x][y];
+						//else dist[x][y] = -1;
+						++dist[x][y];
+						int npixs[][];
+						n = -1;
+						for(Iterator<int[][]>it = slices.iterator(); it.hasNext() && n < dist[x][y];  ++n) {
+							npixs = it.next();
+							
+							if(((npixs[x][y] >> 16) & 0xFF) == 0) {
+								dist[x][y] = Math.min(dist[x][y], n);
+								break;
+							}
+						}
+						max = Math.max(max, dist[x][y]);
+					}
+				}
+				
+				// path tracing --------------------------------------
+				//ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
+				Main.setData(image, pixels);
+				
+				Color c = ctx.getColor();
+				ArrayList<ArrayList<Vec2>> paths;	
+				
 				ctx.setColor(Color.BLUE);
 				shells = Main.erode(pixels, kernelPerimeter);
 				if(shells != null) {
 					
-				paths = Main.getPaths(shells);
-				for(ArrayList<Vec2> path : paths) {
-					for(int i = 0; i < path.size() - 1; ++i)
-						ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
-				}
-				while((shells = Main.erode(shells, kernel)) != null) {
-					//shells = Main.erode(shells, kernel);
 					paths = Main.getPaths(shells);
 					for(ArrayList<Vec2> path : paths) {
 						for(int i = 0; i < path.size() - 1; ++i)
 							ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
 					}
+					while((shells = Main.erode(shells, kernel)) != null) {
+						//shells = Main.erode(shells, kernel);
+						paths = Main.getPaths(shells);
+						for(ArrayList<Vec2> path : paths) {
+							for(int i = 0; i < path.size() - 1; ++i)
+								ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+						}
+					}
 				}
 				ctx.setColor(c);
-				if(Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + num + ".png"))
-					num++;
-				}
+					
+					
+				
+				Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + num + ".png");
+				++num;
+				do {
+					
+					n = num + slices.size();	
+					if(n < nbSlice) {
+						
+						plane.m_Point.z = obj.getMin().z + n * Main.VERTICAL_STEP;
+						slice.setSlice(plane, obj, true);
+						//slice.printEdge(ctx);
+						slices.add(rasterGPU(slice, n));
+					}else break;
+				}while(slices.size() < max);
 		
-			}
+			}while(!slices.isEmpty());
 		}
 
+		
+		public static void drawPaths(int[][] pixels[]) {
+		
+			BufferedImage image = new BufferedImage(Main.WIDTH, Main.HEIGHT, BufferedImage.TYPE_INT_RGB);
+			Graphics2D ctx = image.createGraphics();
+						
+			int kernel = (int) ((Main.BUSE_SIZE) / Main.PIXEL_SIZE);
+			int kernelPerimeter = (int) ((Main.BUSE_SIZE * 0.5) / Main.PIXEL_SIZE);
+			int[][] shells;
+			
+			for(int k = 0; k < pixels.length; ++k) {
+				ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
+				
+				Main.setData(image, pixels[k]);
+				ArrayList<ArrayList<Vec2>> paths;
+				int nberode = 10;
+				Color c = ctx.getColor();
+				ctx.setColor(Color.BLUE);
+				shells = Main.erode(pixels[k], kernelPerimeter);
+				if(shells != null) {
+					
+					paths = Main.getPaths(shells);
+					for(ArrayList<Vec2> path : paths) {
+						for(int i = 0; i < path.size() - 1; ++i)
+							ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+					}
+					while((shells = Main.erode(shells, kernel)) != null) {
+						//shells = Main.erode(shells, kernel);
+						paths = Main.getPaths(shells);
+						for(ArrayList<Vec2> path : paths) {
+							for(int i = 0; i < path.size() - 1; ++i)
+								ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
+						}
+					}
+					ctx.setColor(c);
+					Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + k + ".png");
+				}
+			}
+		}
+		
 		//
 		// Dans ce TP
 		// - rasteriser les perimetres (remplissage de polygone arbitraire)

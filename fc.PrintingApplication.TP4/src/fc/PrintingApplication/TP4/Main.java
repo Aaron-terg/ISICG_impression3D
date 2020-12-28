@@ -97,25 +97,6 @@ public class Main
 	
 	}
 	
-	
-public static void testDepthPeeling(Obj3DModel obj, int numSlice) {
-		
-		Slice slice = new Slice(numSlice, obj);
-
-		slice.remap(OFFSET, PIXEL_SIZE);
-		int[][] pixels = Rasterer.rasterGPU(slice, numSlice);
-		
-		BufferedImage img = new BufferedImage(WIDTH, HEIGHT,BufferedImage.TYPE_INT_RGB);
-		setData(img, pixels);
-	  	saveImage(img, RESULT_PATH + NAME  + "Ref" + numSlice + ".png");
-	
-	
-	  	pixels = Rasterer.rasterGPUPeeling(slice, numSlice);
-	  	setData(img, pixels);
-	  	saveImage(img, RESULT_PATH + NAME  + "DepthPeeling" + numSlice + ".png");
-	}
-	
-	
 	public static void main(String[] args)
 	{
 		NAME = "yoda";

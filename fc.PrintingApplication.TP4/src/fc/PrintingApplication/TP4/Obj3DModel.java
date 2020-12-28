@@ -8,7 +8,7 @@ import com.owens.oobjloader.builder.Face;
 import com.owens.oobjloader.builder.FaceVertex;
 import com.owens.oobjloader.parser.Parse;
 
-import fc.Math.Plane;
+import fc.PrintingApplication.TP4.Plane;
 import fc.Math.Vec2f;
 import fc.Math.Vec3f;
 

@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import fc.Math.Plane;
+import fc.PrintingApplication.TP4.Plane;
 import fc.Math.Vec2f;
 import fc.Math.Vec3f;
 
