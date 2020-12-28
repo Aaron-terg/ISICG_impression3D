@@ -51,26 +51,18 @@ public class FillingZone implements Comparable {
       float distIntersection = edge.length() * ratioy;
       return b.x + (edge.x / edge.length()) * (-distIntersection);
   }
-
-  public float remap(float x, float offset, float pixSize) {
-	  return (x + offset) * pixSize;
-  }
+  
+  //scanline filling
   public void fillLines(Graphics2D ctx) {
       SortedSet<Float> in = new TreeSet<>();
-      Color prev = ctx.getColor();
-      Color colmax = new Color(255, 0, 0), colmin = new Color(64, 0, 0);
-      
       float u =0f, v = 0f, ydist = Math.abs(yMax - yMin);
-      ctx.setColor(colmin);
       for (float y = yMin; y <= yMax; y += 0.05f) {
           for (EdgeSliceData e : lines) {
               Vec2f a = e.a, b = e.b;
-             // if(!e.hasNext()) continue;
               if (a.y == b.y) {
             	  in.add(a.x);
             	  in.add(b.x);
-           //       ctx.draw(new Line2D.Float((a.x + 50.f) * 5.f, (y + 50.f) * 5.f, (b.x + 50.f) * 5.f,
-           //               (y + 50.f) * 5.f));
+                  ctx.draw(new Line2D.Float(a.x, y, b.x, y));
                   continue;
               }
               if (a.y > b.y) {
@@ -84,31 +76,13 @@ public class FillingZone implements Comparable {
               in.add(intersect(y, a, b));
           }
           
-          //v = Math.abs(y - yMin) / ydist;
           Float intersections[] = new Float[in.size()];
           in.toArray(intersections);
           for (int i = 0; i < intersections.length - 1; i += 2) {
-        	
-        	  //float redv =  (int)(64*(1f - v) + 255f * v);
-        	  //float xdist = Math.abs(Math.abs(intersections[i+1]) -Math.abs(intersections[i]));
-        	  
-        	  float ymap = remap(y , 50.f , 5.f);
-        	  for(float x = intersections[i]; x < intersections[i+1]; x+= 0.05f) {
-        		  //u = Math.abs(Math.abs(x) - Math.abs(intersections[i])) / xdist;
-        		  //if(x < 0) u = 1 - u;
-        		//  int redu =  Math.min(255, Math.max(64, (int)(64*(1f - u) + 255f * u)));
-        		//  int red = (int)(Math.abs(redu - redv) / 2f  + Math.min(redu,  redv));
-        		
-        		  //ctx.draw(new Line2D.Float(remap(x,50.f, 5.f), ymap,
-            		//  remap(x + 0.05f , 50.f,  5.f), ymap));
-        		  
-        		  ctx.draw(new Line2D.Float(x, y, x, y));
-        	  }
+        		  ctx.draw(new Line2D.Float(intersections[i], y, intersections[i+1], y));
           }
 
           in.clear();
       }
-      ctx.setColor(prev);
-
   }
 }

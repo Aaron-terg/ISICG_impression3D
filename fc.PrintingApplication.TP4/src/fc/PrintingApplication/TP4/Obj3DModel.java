@@ -56,6 +56,7 @@ public class Obj3DModel {
 
 	}
 
+	// get edge points of the slice of the triangle
 	public void getSlice(Plane plan, int[] triangle, ArrayList<EdgeSliceData> slice) {
 
 
@@ -119,6 +120,7 @@ public class Obj3DModel {
 
 	}
 
+	
 	private void enlarge(Vec3f[] boundingBox, Vec3f v) {
 		boundingBox[0].x = Math.min(boundingBox[0].x, v.x);
 		boundingBox[0].y = Math.min(boundingBox[0].y, v.y);

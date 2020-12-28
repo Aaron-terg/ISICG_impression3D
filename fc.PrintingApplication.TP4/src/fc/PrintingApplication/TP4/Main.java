@@ -37,10 +37,11 @@ public class Main
 		
 	public static void main(String[] args)
 	{
-		NAME = "CuteOcto";
 		NAME = "fawn";
-		NAME = "yoda";
 		NAME = "skull";
+		NAME = "yoda";
+		NAME = "CuteOcto";
+		
 		int numSlice = 5;
 		
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
@@ -53,8 +54,8 @@ public class Main
 
 		
 		//testCorner(obj, numSlice);
-		//Rasterer.rasterCPU(slice, 5);
-		//Rasterer.rasterGPU(slice, 5);
+		//Rasterer.rasterCPU(slice, numSlice);
+		//Rasterer.rasterGPU(slice, numSlice);
 		Rasterer.slicer(null); // <-- main application
 		
 
@@ -72,9 +73,11 @@ public class Main
 		return pixels;
 		
 	}	
+	// put pixels data in the buffered image
 	public static void setData(BufferedImage img, int[][] pixels) {
 		img.setRGB(0, 0, WIDTH, HEIGHT, compact(pixels), 0, WIDTH);
 	}
+	// put pixels data in a 1 dimensional array pixel
 	public static int[] compact(int[][] pixels) {
 		int pix[] = new int[pixels.length * pixels[0].length];
 		for(int y = 0; y < pixels[0].length; ++y) 
@@ -83,6 +86,7 @@ public class Main
 		
 		return pix;
 	}	
+	// return a copy of the pixels
 	public static int[][] copy(int[][] pixels) {
 		int pix[][] = new int[pixels.length][pixels[0].length];
 		for(int y = 0; y < pixels[0].length; ++y) 
@@ -91,12 +95,14 @@ public class Main
 		
 		return pix;
 	}
+	// set all pixels to zero
 	public static void clearData(int[][] pixels) {
 		
 		for(int y = 0; y < pixels[0].length; ++y) 
 			for(int x = 0; x < pixels.length; ++x) 
 				pixels[x][y] = 0x000000;	
 	}
+	// save the buffered image with the specifiedcname
 	public static boolean saveImage(BufferedImage image, String name){
 		System.out.println("printing in " + name);
 		//   File outputFile = new File(System.getProperty("user.dir"), RESULT_PATH + NAME  + "GPU" + numSlice + ".png");
@@ -112,6 +118,7 @@ public class Main
 	}
 	
 	// Path Generator ---------------------------------------------------
+	// return the next point of the contour in a clockwise order
 	public static boolean next(int[][] pixels, Vec2 pos, ArrayList<Vec2> path, Deque<Vec2> neighbors) {
 		Vec2 neighbor = new Vec2(0, 0);
 		Vec2 noon = new Vec2(0,0);
@@ -177,6 +184,7 @@ public class Main
 		return false;
 	}
 	
+	// return the contour of the shape starting at the specified position
 	public static ArrayList<Vec2> getPath(int[][] pixels,Vec2 pos) {
 		
 		ArrayList<Vec2> path = new ArrayList<>();
@@ -202,6 +210,7 @@ public class Main
 					}
 				}
 				if(!startpos) {
+					// go back until next path is found
 					int i = path.size() - 1;
 					do {
 						pos.x = path.get(i).x;
@@ -223,6 +232,7 @@ public class Main
 		return path;
 	}
 	
+	// get paths of all island and hole of the slice
 	public static ArrayList<ArrayList<Vec2>> getPaths(int[][] pixels) {
 		ArrayList<ArrayList<Vec2>> paths = new ArrayList<>();
 		ArrayList<Vec2> corners = getCorners(pixels);
@@ -236,6 +246,7 @@ public class Main
 		return paths;
 	}
 	
+	// reduce nb point in path
 	public static ArrayList<Vec2> smoothPath(ArrayList<Vec2> path){
 		
 		int mid = path.size() / 2;
@@ -314,7 +325,7 @@ public class Main
 
 	}
 	
-	// return null if we reach a null image
+	// erode shapes in image and return null if we reach a null image
 	public static int[][] erode(int[][] pixels, int kernel) {
 		
 		int[][] erodePixs = copy(pixels);	
@@ -360,6 +371,7 @@ public class Main
 		return getCorners(pixels, BoundaryBoxes, null);
 	}
 
+	// get all top left first pixel in each island and hole
 	public static ArrayList<Vec2> getCorners(int[][] pixels, ArrayList<Vec2[]> BoundaryBoxes, ArrayList<Vec2[]> BoundaryBoxesHole){
 		
 		ArrayList<Vec2> positions = new ArrayList<>();
@@ -367,14 +379,13 @@ public class Main
 		// allboxes[0] = island, allboxes[1] = hole
 		ArrayList<Vec2[]> allboxes[] = new ArrayList[]{new ArrayList<>(), new ArrayList<>()};
 		ArrayList<Vec2[]> bboxes = allboxes[0]; // ref of one of the allboxes 
-		ArrayList<Vec2[]> upd = new ArrayList<>(); // ref of one of the allboxes 
+		ArrayList<Vec2[]> upd = new ArrayList<>(); //  
 
 		Stack<Integer> mins = new Stack<>();
 		
 		int minx = Integer.MAX_VALUE, max = -1, min;
 		boolean hole = false, stillin = false, added = false;
 		int m = -1;
-		boolean quit = false;
 		Vec2 pos = new Vec2(0,0);
 			
 		int prevupsamp = 0;
@@ -395,7 +406,6 @@ public class Main
 					else {
 						min = mins.peek();
 						max = x -1;
-						Vec2[] box;
 						added = false;
 						for (Vec2[] bbox : bboxes) {
 							
@@ -405,8 +415,7 @@ public class Main
 							if(y == (bbox[1].y + 1)) {								
 								stillin |= (x <= bbox[1].x && x >= bbox[0].x);
 								if(min <= bbox[1].x && max >= bbox[0].x) {
-									//bbox[1].y = y;
-									box = bbox;
+
 									upd.add(bbox);
 									added = true;
 									bbox[0].x = Math.min(min,  bbox[0].x);
@@ -443,7 +452,7 @@ public class Main
 		
 		for (int i = 0; i < allboxes.length; i++) {
 			
-			// si boite de trou dans une boite d'ile on conserve
+			// keep bbox if bbox of a hole in a bbox of a island
 			if(i == 1) {
 				for(int j = 0; j < allboxes[1].size(); ++j) {
 					boolean in = false;
@@ -473,7 +482,7 @@ public class Main
 				}
 			}
 			
-			// fusion des bbox superposé
+			//  superposed bbox merging
 			for(int j = 0; j < allboxes[i].size(); ++j) {
 				Vec2[] b1 = allboxes[i].get(j);
 				for(int k = j+1; k < allboxes[i].size(); ) {
@@ -502,7 +511,7 @@ public class Main
 						++k;	
 				}
 				hole = i == 1;
-				// premier point en haut à gauche
+				// find first point top left
 				for(int x = b1[0].x; x < b1[1].x; ++x) {
 					int samp = (pixels[x][b1[0].y] >> 16) & 0xFF;
 					

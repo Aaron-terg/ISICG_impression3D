@@ -14,9 +14,8 @@ import fc.Math.Vec3f;
 public class Slice {
 
     public float z = 0;
-    public ArrayList<Vec2f> edges = new ArrayList<>(); // graphe des arrêtes
-    public ArrayList<Integer> islands = new ArrayList<>(); // graphe des arrêtes
-    // TODO massCenter foreach island for gradient rasterization
+    public ArrayList<Vec2f> edges = new ArrayList<>(); // edges point in contour order
+    public ArrayList<Integer> islands = new ArrayList<>(); // indexes of islands set as beg, end, beg next island, end next island,... 
 
     public Slice() {
     }
@@ -57,8 +56,7 @@ public class Slice {
 
 	}
     
-    // met à jour les ESD dans esds ou l'ajoute si point nouveau
-    // ajoute l'arrête former dans edges
+    // make contour from an array of intersections
     public void makeEdge(ArrayList<EdgeSliceData> _edges) {
     	
     	edges.clear();
@@ -122,6 +120,7 @@ public class Slice {
 		
     }
 
+    // zoom specified with pixsize
     public void remap(Vec2f offset, float pixSize) {
     	for(int i = 0; i < edges.size(); ++i) {
     		Vec2f v = edges.get(i);
@@ -135,7 +134,7 @@ public class Slice {
     
     // -------------------------------------------
     // Graphic
-    // affiche les arrêtes en appliquant un décalage et une mise à l'échelle
+    // affiche les arrêtes
     public void printEdge(Graphics2D ctx) {
         ctx.setColor(Color.RED);
         Vec2f e1, e2;

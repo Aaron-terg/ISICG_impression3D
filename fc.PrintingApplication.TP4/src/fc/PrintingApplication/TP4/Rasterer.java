@@ -102,7 +102,7 @@ public class Rasterer {
 			
 			
 		}
-		
+		// Guth et al methode rasterisation of the slice at numSLice * VERTICAL_STEP
 		public static int[][] rasterGPU(Slice slice, int numSlice) {
 			
 			if(shader == null || matParam == null)
@@ -182,6 +182,7 @@ public class Rasterer {
 			return imgPix;
 		}		
 		
+		// scanline rasterisation of the slice numSlice *VERTICAL_STEP
 		public static int[][] rasterCPU(Slice slice, int numSlice) {
 
 			BufferedImage image = new BufferedImage(Main.WIDTH, Main.HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -197,6 +198,7 @@ public class Rasterer {
 
 		// -------------------------------------------
 		// MainApp
+		// Render every slice using Gth et al methode and compute path of the buse
 		public static void slicer(Obj3DModel obj){
 			if(obj == null) {
 				obj = new Obj3DModel(Main.OBJ_PATH + Main.NAME + ".obj");
@@ -215,7 +217,7 @@ public class Rasterer {
 			int kernelPerimeter = (int) ((Main.BUSE_SIZE * 0.5) / Main.PIXEL_SIZE);
 			int[][] shells;
 			
-			int num = 0;
+			int num = 0, max, n;
 			int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / Main.VERTICAL_STEP);
 			
 			// for each plane along z
@@ -254,8 +256,8 @@ public class Rasterer {
 				// Color z axe ---------------------------------------
 				
 				pixels = slices.poll();
-			
-				int max = -1, n;
+
+				max = -1;
 			
 				for(int x = 0; x < Main.WIDTH; ++x) {
 					for(int y = 0; y < Main.HEIGHT; ++y) {
@@ -280,8 +282,8 @@ public class Rasterer {
 							n = -1;
 							for(Iterator<int[][]>it = slices.iterator(); it.hasNext() && n < dist[x][y];  ++n) {
 								npixs = it.next();
-								
-								if(((npixs[x][y] >> 16) & 0xFF) == 0) {
+								int sl =num + n +1;
+								if(((npixs[x][y] >> 16) & 0xFF) == 0 || sl >= nbSlice ) {
 									dist[x][y] = Math.min(dist[x][y], n);
 									distTop[x][y] = num + n +1;
 									break;
@@ -291,10 +293,11 @@ public class Rasterer {
 						max = Math.max(max, dist[x][y]);
 					}
 				}
-				
-				// path tracing --------------------------------------
 				//ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
 				Main.setData(image, pixels);
+				Main.saveImage(image, Main.RESULT_PATH +"raw/" + Main.NAME  + num + ".png");
+
+				// path tracing --------------------------------------
 				
 				Color c = ctx.getColor();
 				ArrayList<ArrayList<Vec2>> paths;	
@@ -309,7 +312,6 @@ public class Rasterer {
 							ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
 					}
 					while((shells = Main.erode(shells, kernel)) != null) {
-						//shells = Main.erode(shells, kernel);
 						paths = Main.getPaths(shells);
 						for(ArrayList<Vec2> path : paths) {
 							for(int i = 0; i < path.size() - 1; ++i)
@@ -317,11 +319,9 @@ public class Rasterer {
 						}
 					}
 				}
-				ctx.setColor(c);
-					
-					
+				ctx.setColor(c);	
 				
-				Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + num + ".png");
+				Main.saveImage(image, Main.RESULT_PATH +"path/" + Main.NAME  + num + ".png");
 				++num;
 				do {
 					
@@ -330,7 +330,6 @@ public class Rasterer {
 						
 						plane.m_Point.z = obj.getMin().z + n * Main.VERTICAL_STEP;
 						slice.setSlice(plane, obj, true);
-						//slice.printEdge(ctx);
 						slices.add(rasterGPU(slice, n));
 					}else break;
 				}while(slices.size() < max);
