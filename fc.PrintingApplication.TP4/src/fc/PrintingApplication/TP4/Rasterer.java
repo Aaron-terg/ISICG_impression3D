@@ -226,6 +226,8 @@ public class Rasterer {
 			slices.add(pixels);
 			
 			int[][] dist = new int[Main.WIDTH][Main.HEIGHT];
+			int[][] distTop = new int[Main.WIDTH][Main.HEIGHT];
+
 			for(int i = 0; i< Main.WIDTH; ++i)
 				for(int j = 0; j < Main.HEIGHT; ++j) {
 					if( ((pixels[i][j] >> 16) & 0xFF)  == 0) dist[i][j] = -1;
@@ -235,7 +237,15 @@ public class Rasterer {
 			plane.m_Point.z +=  Main.VERTICAL_STEP;
 
 			slice.setSlice(plane, obj, true);
-			slices.add(rasterGPU(slice, 1));
+			pixels = rasterGPU(slice, 1);
+
+			// set distTop to num slice if pix black else -1
+			for(int i = 0; i< Main.WIDTH; ++i)
+				for(int j = 0; j < Main.HEIGHT; ++j) {
+					if( ((pixels[i][j] >> 16) & 0xFF)  == 0) distTop[i][j] = 1;
+					else distTop[i][j] = -1;
+				}
+			slices.add(pixels);
 
 			num = 0;
 			do {
@@ -261,15 +271,21 @@ public class Rasterer {
 						
 						//if(((slices.peek()[x][y] >> 16) & 0xFF) > 0) ++dist[x][y];
 						//else dist[x][y] = -1;
-						++dist[x][y];
-						int npixs[][];
-						n = -1;
-						for(Iterator<int[][]>it = slices.iterator(); it.hasNext() && n < dist[x][y];  ++n) {
-							npixs = it.next();
-							
-							if(((npixs[x][y] >> 16) & 0xFF) == 0) {
-								dist[x][y] = Math.min(dist[x][y], n);
-								break;
+						n = distTop[x][y]  - num;
+						if(n > 0) {
+							dist[x][y] = Math.min(n, dist[x][y]);
+						}else {
+							++dist[x][y];
+							int npixs[][];
+							n = -1;
+							for(Iterator<int[][]>it = slices.iterator(); it.hasNext() && n < dist[x][y];  ++n) {
+								npixs = it.next();
+								
+								if(((npixs[x][y] >> 16) & 0xFF) == 0) {
+									dist[x][y] = Math.min(dist[x][y], n);
+									distTop[x][y] = num + n +1;
+									break;
+								}
 							}
 						}
 						max = Math.max(max, dist[x][y]);

@@ -39,8 +39,8 @@ public class Main
 	{
 		NAME = "CuteOcto";
 		NAME = "fawn";
-		NAME = "skull";
 		NAME = "yoda";
+		NAME = "skull";
 		int numSlice = 5;
 		
 		Obj3DModel obj = new Obj3DModel(OBJ_PATH + NAME + ".obj");
