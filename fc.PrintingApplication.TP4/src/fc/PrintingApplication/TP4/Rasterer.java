@@ -194,47 +194,6 @@ public class Rasterer {
 				
 			return Main.getData(image);
 		}
-		
-		public static void slicer2(Obj3DModel obj){
-			if(obj == null) {
-				obj = new Obj3DModel(Main.OBJ_PATH + Main.NAME + ".obj");
-				int h_size = (int) Math.ceil((obj.getMax().x - obj.getMin().x) / Main.PIXEL_SIZE);
-				int v_size = (int) Math.ceil((obj.getMax().y - obj.getMin().y) / Main.PIXEL_SIZE);
-				Main.WIDTH = h_size;
-				Main.HEIGHT = v_size;
-				Main.OFFSET.x = h_size *0.5f;
-				Main.OFFSET.y = v_size *0.5f;
-			}
-
-			BufferedImage image = new BufferedImage(Main.WIDTH, Main.HEIGHT, BufferedImage.TYPE_INT_RGB);
-			Graphics2D ctx = image.createGraphics();
-			
-			int num = 0;
-			int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / Main.VERTICAL_STEP);
-
-			
-			// for each plane along z
-			Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));
-			Slice slice = new Slice();
-			ArrayList<EdgeSliceData> edges = new ArrayList<>();
-			for (; plane.m_Point.z <= obj.getMax().z; plane.m_Point.z += Main.VERTICAL_STEP) {
-				edges.clear();
-				ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
-		
-				//Slice slice = new Slice(plane, obj, true);
-				slice.setSlice(plane, obj, true);
-				int[][] pixels = rasterGPU(slice, num);
-				
-				Main.setData(image, pixels);
-				Color c = ctx.getColor();
-				
-			
-				ctx.setColor(c);
-				if(Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + num + ".png"))
-					num++;
-		
-			}
-		}
 
 		// -------------------------------------------
 		// MainApp
@@ -361,46 +320,6 @@ public class Rasterer {
 				}while(slices.size() < max);
 		
 			}while(!slices.isEmpty());
-		}
-
-		
-		public static void drawPaths(int[][] pixels[]) {
-		
-			BufferedImage image = new BufferedImage(Main.WIDTH, Main.HEIGHT, BufferedImage.TYPE_INT_RGB);
-			Graphics2D ctx = image.createGraphics();
-						
-			int kernel = (int) ((Main.BUSE_SIZE) / Main.PIXEL_SIZE);
-			int kernelPerimeter = (int) ((Main.BUSE_SIZE * 0.5) / Main.PIXEL_SIZE);
-			int[][] shells;
-			
-			for(int k = 0; k < pixels.length; ++k) {
-				ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
-				
-				Main.setData(image, pixels[k]);
-				ArrayList<ArrayList<Vec2>> paths;
-				int nberode = 10;
-				Color c = ctx.getColor();
-				ctx.setColor(Color.BLUE);
-				shells = Main.erode(pixels[k], kernelPerimeter);
-				if(shells != null) {
-					
-					paths = Main.getPaths(shells);
-					for(ArrayList<Vec2> path : paths) {
-						for(int i = 0; i < path.size() - 1; ++i)
-							ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
-					}
-					while((shells = Main.erode(shells, kernel)) != null) {
-						//shells = Main.erode(shells, kernel);
-						paths = Main.getPaths(shells);
-						for(ArrayList<Vec2> path : paths) {
-							for(int i = 0; i < path.size() - 1; ++i)
-								ctx.draw(new Line2D.Float(path.get(i).x, path.get(i).y, path.get(i+1).x, path.get(i+1).y));
-						}
-					}
-					ctx.setColor(c);
-					Main.saveImage(image, Main.RESULT_PATH +"cpu/" + Main.NAME  + k + ".png");
-				}
-			}
 		}
 		
 		//
