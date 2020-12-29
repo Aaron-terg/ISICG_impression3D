@@ -219,7 +219,7 @@ public class Rasterer {
 			
 			int num = 0, max, n;
 			int nbSlice = (int)((obj.getMax().z - obj.getMin().z) / Main.VERTICAL_STEP);
-			
+			int nbDec = (int)Math.log10(nbSlice) + 1;
 			// for each plane along z
 			Plane plane = new Plane(obj.getMin(), new Vec3f(0.f, 0.f, 1.f));
 			Slice slice = new Slice(plane, obj, true);
@@ -255,6 +255,7 @@ public class Rasterer {
 				
 				// Color z axe ---------------------------------------
 				
+
 				pixels = slices.poll();
 
 				max = -1;
@@ -283,7 +284,7 @@ public class Rasterer {
 							for(Iterator<int[][]>it = slices.iterator(); it.hasNext() && n < dist[x][y];  ++n) {
 								npixs = it.next();
 								int sl =num + n +1;
-								if(((npixs[x][y] >> 16) & 0xFF) == 0 || sl >= nbSlice ) {
+								if(((npixs[x][y] >> 16) & 0xFF) == 0 || sl >= nbSlice) {
 									dist[x][y] = Math.min(dist[x][y], n);
 									distTop[x][y] = num + n +1;
 									break;
@@ -295,7 +296,8 @@ public class Rasterer {
 				}
 				//ctx.clearRect(0, 0, Main.WIDTH, Main.HEIGHT);
 				Main.setData(image, pixels);
-				Main.saveImage(image, Main.RESULT_PATH +"raw/" + Main.NAME  + num + ".png");
+				String numformat = String.format("%0" + nbDec + "d", num);
+				Main.saveImage(image, Main.RESULT_PATH +"raw/" + Main.NAME  + numformat + ".png");
 
 				// path tracing --------------------------------------
 				
@@ -321,12 +323,13 @@ public class Rasterer {
 				}
 				ctx.setColor(c);	
 				
-				Main.saveImage(image, Main.RESULT_PATH +"path/" + Main.NAME  + num + ".png");
+				Main.saveImage(image, Main.RESULT_PATH +"path/" + Main.NAME  + numformat + ".png");
 				++num;
 				do {
 					
 					n = num + slices.size();	
-					if(n < nbSlice) {
+				
+					if(n <= nbSlice) {
 						
 						plane.m_Point.z = obj.getMin().z + n * Main.VERTICAL_STEP;
 						slice.setSlice(plane, obj, true);

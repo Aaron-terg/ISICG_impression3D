@@ -56,7 +56,7 @@ public class Main
 		//testCorner(obj, numSlice);
 		//Rasterer.rasterCPU(slice, numSlice);
 		//Rasterer.rasterGPU(slice, numSlice);
-		Rasterer.slicer(null); // <-- main application
+		Rasterer.slicer(obj); // <-- main application
 		
 
 	}
